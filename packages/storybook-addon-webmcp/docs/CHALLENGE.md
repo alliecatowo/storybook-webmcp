@@ -10,7 +10,8 @@ public open-source code, a project description, and a public or unlisted demo vi
 minutes with audio explaining the build and WebMCP usage. The submission deadline is September 3,
 2026 at 1:00 PM PT. The live URL should be tested in ChatGPT's in-app browser or Chrome with
 WebMCP enabled. This repository's shim evals are mechanics evidence; they do not satisfy native
-browser-agent validation, which remains a separate pending gate. See [SUBMISSION.md](./SUBMISSION.md)
+browser-agent validation, which remains a separate pending gate. The official guidance specifies
+ChatGPT's in-app browser or Google Chrome 149+ with WebMCP enabled. See [SUBMISSION.md](./SUBMISSION.md)
 for the release checklist and exact handoff status.
 
 ## Thesis
