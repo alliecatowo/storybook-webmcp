@@ -63,6 +63,12 @@ export const TIMEOUTS = {
   argsUpdate: 1500,
   globalsUpdate: 1500,
   navigation: 3000,
+  /**
+   * One-shot re-validation delay after a contextual capability is registered.
+   * The Manager finishes settling its own globals shortly after STORY_PREPARED,
+   * and that settling arrives without an observable lifecycle event.
+   */
+  settle: 250,
 } as const
 
 /** Length of the hexadecimal capability fingerprint appended to tool names. */

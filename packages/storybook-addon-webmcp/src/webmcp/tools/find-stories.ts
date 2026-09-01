@@ -5,7 +5,7 @@
  */
 
 import type { StorybookAdapter } from '../../storybook/storybook-adapter.js'
-import { invalidInput } from '../../core/errors.js'
+import { internalError, invalidInput } from '../../core/errors.js'
 import { LIMITS } from '../../core/constants.js'
 import type { ObjectSchema } from '../../core/types.js'
 import type { ToolDescriptor } from '../registry.js'
@@ -38,7 +38,13 @@ function normalize(value: string): string {
 }
 
 /** Score a single story against the normalized query; undefined means no match. */
-function scoreStory(query: string, tokens: string[], id: string, title: string, name: string): number | undefined {
+function scoreStory(
+  query: string,
+  tokens: string[],
+  id: string,
+  title: string,
+  name: string
+): number | undefined {
   const nId = normalize(id)
   const nTitle = normalize(title)
   const nName = normalize(name)
@@ -73,9 +79,12 @@ export function createFindStoriesTool(adapter: StorybookAdapter): ToolDescriptor
       untrustedContentHint: true,
     },
     describeResult: (result) => {
-      if (typeof result !== 'object' || result === null || (result as { ok?: unknown }).ok !== true) return []
+      if (typeof result !== 'object' || result === null || (result as { ok?: unknown }).ok !== true)
+        return []
       const matches = (result as { matches?: Match[] }).matches ?? []
-      return matches.slice(0, LIMITS.recentCalls).map((match) => `${match.id} (${match.title}/${match.name})`)
+      return matches
+        .slice(0, LIMITS.recentCalls)
+        .map((match) => `${match.id} (${match.title}/${match.name})`)
     },
     execute: async (input) => {
       if (typeof input !== 'object' || input === null || Array.isArray(input)) {
@@ -84,8 +93,22 @@ export function createFindStoriesTool(adapter: StorybookAdapter): ToolDescriptor
 
       const { query: rawQuery, limit: rawLimit } = input as { query?: unknown; limit?: unknown }
 
-      if (typeof rawQuery !== 'string' || rawQuery.length < 1 || rawQuery.length > LIMITS.searchQueryLength) {
-        return invalidInput(`"query" must be a string between 1 and ${LIMITS.searchQueryLength} characters.`)
+      if (
+        typeof rawQuery !== 'string' ||
+        rawQuery.length < 1 ||
+        rawQuery.length > LIMITS.searchQueryLength
+      ) {
+        return invalidInput(
+          `"query" must be a string between 1 and ${LIMITS.searchQueryLength} characters.`
+        )
+      }
+
+      if (
+        !Object.keys(input as Record<string, unknown>).every(
+          (key) => key === 'query' || key === 'limit'
+        )
+      ) {
+        return invalidInput('Input may contain only "query" and optional "limit".')
       }
 
       let limit: number = LIMITS.searchResultsDefault
@@ -102,30 +125,37 @@ export function createFindStoriesTool(adapter: StorybookAdapter): ToolDescriptor
       }
 
       const query = normalize(rawQuery)
+      if (query.length === 0) {
+        return invalidInput('"query" must contain at least one non-whitespace character.')
+      }
       const tokens = query.split(' ').filter((token) => token.length > 0)
 
-      const scored: Array<Match & { score: number }> = []
-      for (const story of adapter.getStoryIndex()) {
-        const score = scoreStory(query, tokens, story.id, story.title, story.name)
-        if (score === undefined) continue
-        scored.push({ id: story.id, title: story.title, name: story.name, score })
-      }
+      try {
+        const scored: Array<Match & { score: number }> = []
+        for (const story of adapter.getStoryIndex()) {
+          const score = scoreStory(query, tokens, story.id, story.title, story.name)
+          if (score === undefined) continue
+          scored.push({ id: story.id, title: story.title, name: story.name, score })
+        }
 
-      scored.sort((a, b) => {
-        if (b.score !== a.score) return b.score - a.score
-        if (a.title !== b.title) return a.title < b.title ? -1 : 1
-        if (a.name !== b.name) return a.name < b.name ? -1 : 1
-        return 0
-      })
+        scored.sort((a, b) => {
+          if (b.score !== a.score) return b.score - a.score
+          if (a.title !== b.title) return a.title < b.title ? -1 : 1
+          if (a.name !== b.name) return a.name < b.name ? -1 : 1
+          return 0
+        })
 
-      const matches = scored.slice(0, limit).map(({ id, title, name }) => ({ id, title, name }))
+        const matches = scored.slice(0, limit).map(({ id, title, name }) => ({ id, title, name }))
 
-      return {
-        ok: true,
-        query: rawQuery,
-        matches,
-        returned: matches.length,
-        truncated: scored.length > matches.length,
+        return {
+          ok: true,
+          query: rawQuery,
+          matches,
+          returned: matches.length,
+          truncated: scored.length > matches.length,
+        }
+      } catch (error) {
+        return internalError(error)
       }
     },
   }

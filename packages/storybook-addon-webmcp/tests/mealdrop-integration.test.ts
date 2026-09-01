@@ -62,7 +62,13 @@ describe('MealDrop integration (spec §41)', () => {
       expect(rating.maximum).toBe(5)
       expect(rating.multipleOf).toBe(0.1)
       // "exactly" this shape: the only other key allowed is the description the compiler adds.
-      expect(Object.keys(rating).sort()).toEqual(['description', 'maximum', 'minimum', 'multipleOf', 'type'])
+      expect(Object.keys(rating).sort()).toEqual([
+        'description',
+        'maximum',
+        'minimum',
+        'multipleOf',
+        'type',
+      ])
     })
 
     it('reports a rating descriptor of kind number with the same bounds', () => {
@@ -205,7 +211,7 @@ describe('MealDrop integration (spec §41)', () => {
           styles: { width: `${width}px`, height: 'calc(100% - 20px)' },
           type: 'other',
         },
-      ]),
+      ])
     )
 
     const state = makeState({
@@ -222,7 +228,13 @@ describe('MealDrop integration (spec §41)', () => {
 
       expect(viewport?.options.map((o) => o.id)).toEqual(breakpointIds)
       const bpS = viewport?.options.find((o) => o.id === 'breakpointS')
-      expect(bpS).toEqual({ id: 'breakpointS', name: 'Breakpoint - S', width: '640px', height: 'calc(100% - 20px)', type: 'other' })
+      expect(bpS).toEqual({
+        id: 'breakpointS',
+        name: 'Breakpoint - S',
+        width: '640px',
+        height: 'calc(100% - 20px)',
+        type: 'other',
+      })
     })
 
     it('does not hard-code any MealDrop viewport/breakpoint id in the addon source', () => {
@@ -230,7 +242,7 @@ describe('MealDrop integration (spec §41)', () => {
       try {
         const output = execSync(
           `grep -rnE '${breakpointIds.join('|')}' ${JSON.stringify(ADDON_SRC)}`,
-          { encoding: 'utf-8' },
+          { encoding: 'utf-8' }
         )
         matched = output.split('\n').filter((line) => line.length > 0)
       } catch (error) {

@@ -14,6 +14,7 @@
     "pre-commit": "lint-staged",
     "prepare": "husky",
     "serve": "vite preview",
+    "serve:storybook": "vite preview --outDir build/storybook --port 6006",
     "start": "vite",
     "check": "tsc --noEmit && yarn workspace storybook-addon-webmcp check",
     "storybook": "yarn build:addon && storybook dev -p 6006",

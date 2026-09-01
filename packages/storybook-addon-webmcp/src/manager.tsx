@@ -18,7 +18,10 @@ addons.register(ADDON_ID, (api) => {
     const service = startWebMCPService(api)
     setPanelService(service)
   } catch (error) {
-    if (process.env.NODE_ENV !== 'production') {
+    // `process` is not guaranteed to exist in a browser Manager bundle. Keep
+    // diagnostics development-only without making the progressive-enhancement
+    // path depend on a Node global.
+    if (typeof process !== 'undefined' && process.env && process.env.NODE_ENV !== 'production') {
       // eslint-disable-next-line no-console
       console.error('[storybook-addon-webmcp] failed to start WebMCP service', error)
     }

@@ -62,7 +62,7 @@ export async function buildSnapshot(adapter: StorybookAdapter): Promise<Capabili
 export async function assertFresh(
   adapter: StorybookAdapter,
   expected: { storyId: string; hash: string },
-  which: 'controls' | 'globals',
+  which: 'controls' | 'globals'
 ): Promise<ErrorResult | null> {
   const state = adapter.readState()
   const currentStoryId = state.story?.id ?? ''
@@ -112,11 +112,14 @@ export function sameSnapshot(a: CapabilitySnapshot | null, b: CapabilitySnapshot
 
 /**
  * Subscribes to the Storybook lifecycle events that can change the
- * capability surface (spec §27). `story-changed` fires `onStoryChanged`
- * synchronously first — so the transition window has zero stale contextual
- * tools registered — before a snapshot for the new story is even attempted.
- * Every event that can affect the compiled schema then recomputes a fresh
- * snapshot; overlapping builds are resolved by generation number so a slow,
+ * capability surface (spec §27). `story-changed` ONLY fires `onStoryChanged`
+ * — so the transition window has zero stale contextual tools registered —
+ * and otherwise does nothing but wait for the new story's preparation. Only
+ * `story-prepared`/`args-updated`/`globals-updated` recompute a fresh
+ * snapshot: `story-changed` fires before the new story's args/argTypes are
+ * necessarily ready, so building a snapshot from it could register a
+ * capability from stale or half-loaded state during the transition window.
+ * Overlapping builds are resolved by generation number so a slow,
  * superseded build can never clobber a newer result.
  */
 export function watchLifecycle(
@@ -124,7 +127,7 @@ export function watchLifecycle(
   handlers: {
     onStoryChanged: () => void
     onSnapshot: (snapshot: CapabilitySnapshot) => void
-  },
+  }
 ): () => void {
   let generation = 0
 
@@ -139,8 +142,9 @@ export function watchLifecycle(
   const unsubscribe = adapter.subscribeToLifecycle((event) => {
     switch (event) {
       case 'story-changed':
+        // Abort only. The new story's args/argTypes are not guaranteed to be
+        // ready yet, so no snapshot is built here — wait for `story-prepared`.
         handlers.onStoryChanged()
-        runSnapshot()
         break
       case 'story-prepared':
       case 'args-updated':

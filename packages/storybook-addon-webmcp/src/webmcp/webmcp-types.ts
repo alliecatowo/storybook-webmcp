@@ -32,7 +32,11 @@ export type ModelContext = {
   registerTool(descriptor: ToolDescriptor, options?: { signal?: AbortSignal }): unknown
   getTools?(): unknown[]
   executeTool?(name: string, input: unknown): Promise<unknown>
-  addEventListener?(type: 'toolchange', listener: () => void, options?: { signal?: AbortSignal }): void
+  addEventListener?(
+    type: 'toolchange',
+    listener: () => void,
+    options?: { signal?: AbortSignal }
+  ): void
   removeEventListener?(type: 'toolchange', listener: () => void): void
 }
 

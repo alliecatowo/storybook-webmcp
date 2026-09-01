@@ -10,17 +10,39 @@ import type { JsonPrimitive, JsonSafeValue } from './types.js'
 import { LIMITS } from './constants.js'
 
 export function isJsonPrimitive(v: unknown): v is JsonPrimitive {
-  return v === null || typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean'
+  // JSON has no representation for NaN or infinities. Treating them as
+  // primitives here would let invalid enum/global values reach both the
+  // exposed schema and runtime validation (and JSON.stringify turns them into
+  // null), changing the user's actual capability unexpectedly.
+  return (
+    v === null ||
+    typeof v === 'string' ||
+    (typeof v === 'number' && Number.isFinite(v)) ||
+    typeof v === 'boolean'
+  )
 }
 
 /** Defensive check for React elements: they carry a `$$typeof` property valued with the react.element symbol tag. */
 function isReactElement(v: unknown): boolean {
+  const tag =
+    typeof v === 'object' && v !== null && '$$typeof' in v
+      ? (v as { $$typeof?: unknown }).$$typeof
+      : undefined
   return (
-    typeof v === 'object' &&
-    v !== null &&
-    '$$typeof' in v &&
-    (v as { $$typeof?: unknown }).$$typeof === Symbol.for('react.element')
+    tag === Symbol.for('react.element') ||
+    tag === Symbol.for('react.transitional.element') ||
+    tag === Symbol.for('react.portal')
   )
+}
+
+/** Define an own enumerable property without allowing `__proto__` to mutate a prototype. */
+export function setOwn(target: Record<string, unknown>, key: string, value: unknown): void {
+  Object.defineProperty(target, key, {
+    value,
+    enumerable: true,
+    writable: true,
+    configurable: true,
+  })
 }
 
 /** Appends '…' only when truncation actually removed characters. */
@@ -90,7 +112,7 @@ export function toJsonSafe(value: unknown, opts?: ToJsonSafeOpts): JsonSafeValue
       if (count >= maxProperties) break
       const converted = convert((v as Record<string, unknown>)[key], depth + 1)
       if (converted === undefined) continue
-      out[key] = converted
+      setOwn(out, key, converted)
       count += 1
     }
     seen.delete(v)
@@ -98,6 +120,47 @@ export function toJsonSafe(value: unknown, opts?: ToJsonSafeOpts): JsonSafeValue
   }
 
   return convert(value, 0)
+}
+
+/**
+ * Strict representability check for a live Storybook value. Unlike
+ * `toJsonSafe`, this never coerces non-finite numbers to null or silently
+ * drops nested values: a control whose current value cannot be represented
+ * faithfully is not exposed as writable in the first place.
+ */
+export function isJsonRepresentable(value: unknown, opts?: ToJsonSafeOpts): boolean {
+  const maxDepth = opts?.maxDepth ?? LIMITS.objectDepth
+  const maxItems = opts?.maxItems ?? LIMITS.arrayItems
+  const maxProperties = opts?.maxProperties ?? LIMITS.objectProperties
+  const seen = new Set<unknown>()
+
+  function visit(v: unknown, depth: number, root: boolean): boolean {
+    if (v === undefined) return root
+    if (v === null || typeof v === 'string' || typeof v === 'boolean') return true
+    if (typeof v === 'number') return Number.isFinite(v)
+    if (typeof v === 'function' || typeof v === 'symbol' || typeof v === 'bigint') return false
+    if (typeof v !== 'object' || isReactElement(v)) return false
+    if (seen.has(v) || depth >= maxDepth) return false
+
+    if (Array.isArray(v)) {
+      if (v.length > maxItems) return false
+      seen.add(v)
+      const valid = v.every((item) => visit(item, depth + 1, false))
+      seen.delete(v)
+      return valid
+    }
+
+    const proto = Object.getPrototypeOf(v)
+    if (proto !== Object.prototype && proto !== null) return false
+    const keys = Object.keys(v as Record<string, unknown>)
+    if (keys.length > maxProperties) return false
+    seen.add(v)
+    const valid = keys.every((key) => visit((v as Record<string, unknown>)[key], depth + 1, false))
+    seen.delete(v)
+    return valid
+  }
+
+  return visit(value, 0, true)
 }
 
 /** Thin wrapper for bounding a single value to a fixed string budget. */

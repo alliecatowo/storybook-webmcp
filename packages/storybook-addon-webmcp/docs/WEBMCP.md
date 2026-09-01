@@ -34,7 +34,11 @@ export type ModelContext = {
   registerTool(descriptor: ToolDescriptor, options?: { signal?: AbortSignal }): unknown
   getTools?(): unknown[]
   executeTool?(name: string, input: unknown): Promise<unknown>
-  addEventListener?(type: 'toolchange', listener: () => void, options?: { signal?: AbortSignal }): void
+  addEventListener?(
+    type: 'toolchange',
+    listener: () => void,
+    options?: { signal?: AbortSignal }
+  ): void
   removeEventListener?(type: 'toolchange', listener: () => void): void
 }
 ```
@@ -200,13 +204,13 @@ contextual, whose names are versioned with the current compiled capability's
 hash so a stale schema a browser agent may have cached can never resolve to
 a different (incompatible) schema (spec §18):
 
-| Constant | Name | Session lifetime |
-| --- | --- | --- |
-| `TOOL_GET_CONTEXT` | `storybook_get_context` | stable |
-| `TOOL_FIND_STORIES` | `storybook_find_stories` | stable |
-| `TOOL_OPEN_STORY` | `storybook_open_story` | stable |
-| `TOOL_UPDATE_CONTROLS_PREFIX` | `storybook_update_controls.<hash>` | contextual |
-| `TOOL_RESET_CONTROLS_PREFIX` | `storybook_reset_controls.<hash>` | contextual |
-| `TOOL_UPDATE_GLOBALS_PREFIX` | `storybook_update_globals.<hash>` | contextual |
+| Constant                      | Name                               | Session lifetime |
+| ----------------------------- | ---------------------------------- | ---------------- |
+| `TOOL_GET_CONTEXT`            | `storybook_get_context`            | stable           |
+| `TOOL_FIND_STORIES`           | `storybook_find_stories`           | stable           |
+| `TOOL_OPEN_STORY`             | `storybook_open_story`             | stable           |
+| `TOOL_UPDATE_CONTROLS_PREFIX` | `storybook_update_controls.<hash>` | contextual       |
+| `TOOL_RESET_CONTROLS_PREFIX`  | `storybook_reset_controls.<hash>`  | contextual       |
+| `TOOL_UPDATE_GLOBALS_PREFIX`  | `storybook_update_globals.<hash>`  | contextual       |
 
 (Constants defined in [`src/core/constants.ts`](../src/core/constants.ts).)

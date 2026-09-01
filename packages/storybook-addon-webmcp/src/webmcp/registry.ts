@@ -83,7 +83,11 @@ export function createRegistry(hooks: RegistryHooks = {}): Registry {
     return async (input: unknown, context?: { signal?: AbortSignal }) => {
       try {
         const result = await descriptor.execute(input, context)
-        hooks.onCall?.({ label: descriptor.title, ok: resultOk(result), lines: safeLines(descriptor, result) })
+        hooks.onCall?.({
+          label: descriptor.title,
+          ok: resultOk(result),
+          lines: safeLines(descriptor, result),
+        })
         return result
       } catch (error) {
         hooks.onCall?.({ label: descriptor.title, ok: false, lines: [] })
@@ -107,7 +111,7 @@ export function createRegistry(hooks: RegistryHooks = {}): Registry {
             annotations: tool.annotations,
             execute: wrapExecute(tool),
           },
-          { signal },
+          { signal }
         )
         entries.push({ name: tool.name, title: tool.title })
       } catch {

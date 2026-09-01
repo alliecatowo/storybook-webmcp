@@ -25,7 +25,12 @@ type FakeStory = {
 }
 
 function createFakeAdapter() {
-  const reviewInitial = { rating: 4.3, showAvatar: true, label: 'Great product', secretId: 'abc123' }
+  const reviewInitial = {
+    rating: 4.3,
+    showAvatar: true,
+    label: 'Great product',
+    secretId: 'abc123',
+  }
   const iconInitial = { name: 'star' }
 
   const stories: Record<string, FakeStory> = {
@@ -60,17 +65,32 @@ function createFakeAdapter() {
   // Scoring-ladder fixtures (spec §6) plus one docs entry that must never surface.
   const scoringIndex: IndexEntry[] = [
     { id: 'zulu-report--yankee', title: 'Zulu Report', name: 'Yankee', type: 'story' },
-    { id: 'components-checkbox--default', title: 'Components/Checkbox', name: 'Default', type: 'story' },
+    {
+      id: 'components-checkbox--default',
+      title: 'Components/Checkbox',
+      name: 'Default',
+      type: 'story',
+    },
     { id: 'components-widgetry--base', title: 'Components/Widgetry', name: 'Base', type: 'story' },
     { id: 'components-zeta--fluffy', title: 'Components/Zeta', name: 'Fluffy', type: 'story' },
     { id: 'xyz-special--one', title: 'Something/Else', name: 'One', type: 'story' },
-    { id: 'components-button--loading', title: 'Components/Button', name: 'Loading', type: 'story' },
+    {
+      id: 'components-button--loading',
+      title: 'Components/Button',
+      name: 'Loading',
+      type: 'story',
+    },
     { id: 'beta-team--zed', title: 'Beta Team', name: 'Common', type: 'story' },
     { id: 'alpha-team--zed', title: 'Alpha Team', name: 'Common', type: 'story' },
     { id: 'same-prefix--bravo', title: 'Prefixy Group', name: 'Bravo', type: 'story' },
     { id: 'same-prefix--alpha', title: 'Prefixy Group', name: 'Alpha', type: 'story' },
     // A docs entry that would win at the highest possible score if it leaked.
-    { id: 'components-review--default--docs', title: 'Components/Review', name: 'Default', type: 'docs' },
+    {
+      id: 'components-review--default--docs',
+      title: 'Components/Review',
+      name: 'Default',
+      type: 'docs',
+    },
     { id: 'components-review--docs', title: 'Components/Review', name: 'Docs', type: 'docs' },
   ]
 
@@ -97,7 +117,11 @@ function createFakeAdapter() {
 
   const viewportParameter = {
     options: {
-      mobile1: { name: 'Small mobile', styles: { width: '320px', height: '568px' }, type: 'mobile' },
+      mobile1: {
+        name: 'Small mobile',
+        styles: { width: '320px', height: '568px' },
+        type: 'mobile',
+      },
       tablet: { name: 'Tablet', styles: { width: '834px', height: '1112px' }, type: 'tablet' },
     },
   }
@@ -118,8 +142,14 @@ function createFakeAdapter() {
       return { id: currentStoryId, title: s.title, name: s.name, viewMode: 'story' }
     },
     getStoryIndex: () => {
-      const fromStories = Object.entries(stories).map(([id, s]) => ({ id, title: s.title, name: s.name }))
-      const fromScoring = scoringIndex.filter((e) => e.type === 'story').map((e) => ({ id: e.id, title: e.title, name: e.name }))
+      const fromStories = Object.entries(stories).map(([id, s]) => ({
+        id,
+        title: s.title,
+        name: s.name,
+      }))
+      const fromScoring = scoringIndex
+        .filter((e) => e.type === 'story')
+        .map((e) => ({ id: e.id, title: e.title, name: e.name }))
       return [...fromStories, ...fromScoring]
     },
     findStory: (id) => {
@@ -133,8 +163,10 @@ function createFakeAdapter() {
       currentStoryId = id
       return { before, after: id, verified: true }
     },
-    getArgs: () => (currentStoryId && stories[currentStoryId] ? { ...stories[currentStoryId]!.args } : {}),
-    getArgTypes: () => (currentStoryId && stories[currentStoryId] ? { ...stories[currentStoryId]!.argTypes } : {}),
+    getArgs: () =>
+      currentStoryId && stories[currentStoryId] ? { ...stories[currentStoryId]!.args } : {},
+    getArgTypes: () =>
+      currentStoryId && stories[currentStoryId] ? { ...stories[currentStoryId]!.argTypes } : {},
     updateArgs: async (patch, signal) => {
       if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
       if (!currentStoryId || !stories[currentStoryId]) return {}
@@ -236,7 +268,10 @@ function withHangingUpdateGlobals(base: StorybookAdapter): StorybookAdapter {
 }
 
 /** Wraps updateArgs so tests can assert it was never invoked (spec §16). */
-function spyOnUpdateArgs(adapter: StorybookAdapter): { adapter: StorybookAdapter; spy: ReturnType<typeof vi.fn> } {
+function spyOnUpdateArgs(adapter: StorybookAdapter): {
+  adapter: StorybookAdapter
+  spy: ReturnType<typeof vi.fn>
+} {
   const spy = vi.fn(adapter.updateArgs)
   return { adapter: { ...adapter, updateArgs: spy }, spy }
 }
@@ -272,7 +307,11 @@ describe('storybook_get_context (spec §5)', () => {
     expect(result.controls.values.label).toBe('Great product')
     // secretId is control:false -- never in values or editable.
     expect(result.controls.values.secretId).toBeUndefined()
-    expect(result.controls.editable.map((c: any) => c.name).sort()).toEqual(['label', 'rating', 'showAvatar'])
+    expect(result.controls.editable.map((c: any) => c.name).sort()).toEqual([
+      'label',
+      'rating',
+      'showAvatar',
+    ])
     expect(typeof result.controls.skippedCount).toBe('number')
 
     expect(result.globals.values.theme).toBe('light')
@@ -312,6 +351,50 @@ describe('storybook_get_context (spec §5)', () => {
 
     expect(result.controls.values.label).toBe(`${'x'.repeat(LIMITS.contextString)}…`)
     expect(result.controls.values.label.length).toBe(LIMITS.contextString + 1)
+  })
+
+  it('capabilities.controlsSchema is null when every ArgType is skipped, and skippedCount counts them', async () => {
+    // A story whose only args are all control:false: nothing is editable,
+    // so there is no controls capability to register/hash -- but the
+    // rejections still show up in skippedCount (spec §5).
+    const adapter: StorybookAdapter = {
+      getCurrentStory: () => ({
+        id: 'locked-story--only',
+        title: 'Locked',
+        name: 'Only',
+        viewMode: 'story',
+      }),
+      getStoryIndex: () => [{ id: 'locked-story--only', title: 'Locked', name: 'Only' }],
+      findStory: () => null,
+      selectStory: async (id) => ({ before: null, after: id, verified: true }),
+      getArgs: () => ({ hidden: 'nope', alsoHidden: 'nope' }),
+      getArgTypes: () => ({ hidden: { control: false }, alsoHidden: { control: false } }),
+      updateArgs: async () => ({}),
+      resetArgs: async () => ({}),
+      getGlobals: () => ({}),
+      getUserGlobals: () => ({}),
+      getStoryGlobals: () => ({}),
+      getGlobalTypes: () => ({}),
+      updateGlobals: async () => ({}),
+      getViewportConfiguration: () => undefined,
+      readState: () => ({
+        story: { id: 'locked-story--only', title: 'Locked', name: 'Only', viewMode: 'story' },
+        args: { hidden: 'nope', alsoHidden: 'nope' },
+        argTypes: { hidden: { control: false }, alsoHidden: { control: false } },
+        globals: {},
+        globalTypes: {},
+        storyGlobals: {},
+        viewportParameter: undefined,
+      }),
+      subscribeToLifecycle: () => () => {},
+    }
+
+    const tool = createGetContextTool(adapter)
+    const result = (await tool.execute(undefined)) as any
+
+    expect(result.controls).toEqual({ values: {}, editable: [], skippedCount: 2 })
+    expect(result.globals).toEqual({ values: {}, editable: [] })
+    expect(result.capabilities).toEqual({ controlsSchema: null, globalsSchema: null })
   })
 })
 
@@ -432,6 +515,69 @@ describe('storybook_find_stories (spec §6)', () => {
     const docsOnly = (await tool.execute({ query: 'components/review/docs' })) as any
     expect(docsOnly.matches).toEqual([])
   })
+
+  it('normalizes the query with trim, lowercase, and whitespace collapse before scoring', async () => {
+    const { adapter } = createFakeAdapter()
+    const tool = createFindStoriesTool(adapter)
+
+    // Mixed case, leading/trailing whitespace, and doubled internal spaces
+    // must still hit the exact "title/name" tier (95) for Components/Icon.
+    const messy = (await tool.execute({ query: '  Components/Icon/Playground  ' })) as any
+    expect(messy.matches[0]).toEqual({
+      id: 'components-icon--playground',
+      title: 'Components/Icon',
+      name: 'Playground',
+    })
+
+    const collapsed = (await tool.execute({ query: 'yankee    zulu' })) as any
+    expect(collapsed.matches[0]?.id).toBe('zulu-report--yankee')
+  })
+
+  it('defaults `limit` to 10 when omitted', async () => {
+    // A dedicated index of 15 stories sharing one substring, so the total
+    // match count (15) genuinely exceeds the default page size (10).
+    const manyStories: IndexEntry[] = Array.from({ length: 15 }, (_, i) => ({
+      id: `widget-lab--variant-${String(i).padStart(2, '0')}`,
+      title: 'Widget Lab',
+      name: `Variant ${i}`,
+      type: 'story' as const,
+    }))
+    const adapter: StorybookAdapter = {
+      getCurrentStory: () => null,
+      getStoryIndex: () => manyStories.map(({ id, title, name }) => ({ id, title, name })),
+      findStory: () => null,
+      selectStory: async (id) => ({ before: null, after: id, verified: true }),
+      getArgs: () => ({}),
+      getArgTypes: () => ({}),
+      updateArgs: async () => ({}),
+      resetArgs: async () => ({}),
+      getGlobals: () => ({}),
+      getUserGlobals: () => ({}),
+      getStoryGlobals: () => ({}),
+      getGlobalTypes: () => ({}),
+      updateGlobals: async () => ({}),
+      getViewportConfiguration: () => undefined,
+      readState: () => ({
+        story: null,
+        args: {},
+        argTypes: {},
+        globals: {},
+        globalTypes: {},
+        storyGlobals: {},
+        viewportParameter: undefined,
+      }),
+      subscribeToLifecycle: () => () => {},
+    }
+    const tool = createFindStoriesTool(adapter)
+
+    const full = (await tool.execute({ query: 'widget-lab', limit: 20 })) as any
+    expect(full.matches).toHaveLength(15)
+
+    const defaulted = (await tool.execute({ query: 'widget-lab' })) as any
+    expect(defaulted.returned).toBe(10)
+    expect(defaulted.matches).toHaveLength(10)
+    expect(defaulted.truncated).toBe(true)
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -469,7 +615,7 @@ describe('storybook_open_story (spec §7)', () => {
     controller.abort()
 
     await expect(
-      tool.execute({ storyId: 'components-icon--playground' }, { signal: controller.signal }),
+      tool.execute({ storyId: 'components-icon--playground' }, { signal: controller.signal })
     ).rejects.toMatchObject({ name: 'AbortError' })
 
     // Navigation never happened.
@@ -480,13 +626,71 @@ describe('storybook_open_story (spec §7)', () => {
     const { adapter } = createFakeAdapter()
     const neverLands: StorybookAdapter = {
       ...adapter,
-      selectStory: async (id) => ({ before: adapter.getCurrentStory()?.id ?? null, after: id, verified: false }),
+      selectStory: async (id) => ({
+        before: adapter.getCurrentStory()?.id ?? null,
+        after: id,
+        verified: false,
+      }),
     }
     const tool = createOpenStoryTool(neverLands)
     const result = (await tool.execute({ storyId: 'components-icon--playground' })) as any
     expect(result).toEqual({
       ok: false,
       error: { code: 'NAVIGATION_TIMEOUT', message: expect.any(String), retryable: true },
+    })
+  })
+
+  it('a landed-but-wrong story (verified true, but the authoritative read disagrees) still yields NAVIGATION_TIMEOUT', async () => {
+    const { adapter } = createFakeAdapter()
+    // The adapter claims verified success, but the authoritative read-back
+    // (step 10-11) shows a different story landed -- must not be trusted.
+    const wrongLanding: StorybookAdapter = {
+      ...adapter,
+      selectStory: async (id) => ({
+        before: adapter.getCurrentStory()?.id ?? null,
+        after: id,
+        verified: true,
+      }),
+      getCurrentStory: () => ({
+        id: 'components-review--default',
+        title: 'Components/Review',
+        name: 'Default',
+        viewMode: 'story',
+      }),
+    }
+    const tool = createOpenStoryTool(wrongLanding)
+    const result = (await tool.execute({ storyId: 'components-icon--playground' })) as any
+    expect(result).toEqual({
+      ok: false,
+      error: { code: 'NAVIGATION_TIMEOUT', message: expect.any(String), retryable: true },
+    })
+  })
+
+  it('rejects a docs entry id (an entry that exists but is not a story) with STORY_NOT_FOUND', async () => {
+    const { adapter } = createFakeAdapter()
+    const tool = createOpenStoryTool(adapter)
+    // Present in the index, but type: 'docs' -- must be rejected exactly
+    // like an id that is entirely absent (spec §7 step 4).
+    const result = (await tool.execute({ storyId: 'components-review--default--docs' })) as any
+    expect(result).toEqual({
+      ok: false,
+      error: { code: 'STORY_NOT_FOUND', message: expect.any(String), retryable: true },
+    })
+    // Never navigated away from the current story.
+    expect(adapter.getCurrentStory()?.id).toBe('components-review--default')
+  })
+
+  it('`before` is null when there was no current story prior to navigating', async () => {
+    const { adapter, goTo } = createFakeAdapter()
+    goTo(null)
+    const tool = createOpenStoryTool(adapter)
+    const result = (await tool.execute({ storyId: 'components-icon--playground' })) as any
+    expect(result).toEqual({
+      ok: true,
+      action: 'open_story',
+      before: null,
+      after: 'components-icon--playground',
+      verified: true,
     })
   })
 })
@@ -587,7 +791,11 @@ describe('storybook_reset_controls (spec §9)', () => {
 
     const result = (await tool.execute({})) as any
     expect(result.ok).toBe(true)
-    expect(adapter.getArgs()).toMatchObject({ rating: 4.3, showAvatar: true, label: 'Great product' })
+    expect(adapter.getArgs()).toMatchObject({
+      rating: 4.3,
+      showAvatar: true,
+      label: 'Great product',
+    })
   })
 
   it('a subset resets only those controls', async () => {
@@ -660,7 +868,7 @@ describe('storybook_update_globals (spec §10)', () => {
       expect.arrayContaining([
         { path: 'globals.theme', before: 'light', after: 'dark' },
         { path: 'globals.viewport.value', before: 'mobile1', after: 'tablet' },
-      ]),
+      ])
     )
     // isRotated did not change, so it must not appear as a spurious change entry.
     expect(result.changes.some((c: any) => c.path === 'globals.viewport.isRotated')).toBe(false)
@@ -745,7 +953,9 @@ describe('abort (spec §40)', () => {
     const controller = new AbortController()
     controller.abort()
 
-    await expect(tool.execute({ theme: 'dark' }, { signal: controller.signal })).rejects.toMatchObject({
+    await expect(
+      tool.execute({ theme: 'dark' }, { signal: controller.signal })
+    ).rejects.toMatchObject({
       name: 'AbortError',
     })
     expect(spy).not.toHaveBeenCalled()

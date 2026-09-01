@@ -1,10 +1,26 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { capabilityHash, sha256Hex } from '../src/core/hash.js'
 import { canonicalJson } from '../src/core/canonicalize.js'
-import { toJsonSafe, truncate } from '../src/core/json.js'
+import { toJsonSafe, truncate, bounded } from '../src/core/json.js'
+import { diff, changesFor, mutationResult } from '../src/core/result.js'
+import {
+  fail,
+  staleContext,
+  storyNotFound,
+  noCurrentStory,
+  storybookNotReady,
+  invalidValue,
+  invalidInput,
+  updateNotApplied,
+  navigationTimeout,
+  updateTimeout,
+  internalError,
+  isAbortError,
+  abortError,
+} from '../src/core/errors.js'
 import { compileControls } from '../src/storybook/control-compiler.js'
 import { LIMITS } from '../src/core/constants.js'
-import type { StorybookState } from '../src/core/types.js'
+import type { ErrorCode, StorybookState } from '../src/core/types.js'
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -39,7 +55,11 @@ function baseState(overrides: Partial<StorybookState> = {}): StorybookState {
 
 describe('capabilityHash', () => {
   it('is deterministic: same input produces the same hash every time', async () => {
-    const schema = { type: 'object', properties: { a: { type: 'number' } }, additionalProperties: false }
+    const schema = {
+      type: 'object',
+      properties: { a: { type: 'number' } },
+      additionalProperties: false,
+    }
     const h1 = await capabilityHash('story-a', schema)
     const h2 = await capabilityHash('story-a', schema)
     expect(h1).toBe(h2)
@@ -219,5 +239,311 @@ describe('toJsonSafe', () => {
     const wide = Array.from({ length: LIMITS.arrayItems + 10 }, (_, i) => i)
     const result = toJsonSafe(wide) as unknown[]
     expect(result.length).toBe(LIMITS.arrayItems)
+  })
+
+  it('defaults its string bound to LIMITS.contextString, not a private literal', () => {
+    const long = 'y'.repeat(LIMITS.contextString + 50)
+    const result = toJsonSafe(long) as string
+    expect(result).toBe(truncate(long, LIMITS.contextString))
+  })
+
+  it('rejects class instances (not plain objects/arrays)', () => {
+    class Foo {
+      x = 1
+    }
+    expect(toJsonSafe(new Foo())).toBeUndefined()
+    expect(toJsonSafe({ f: new Foo(), ok: 1 })).toEqual({ ok: 1 })
+  })
+
+  it('rejects Date, RegExp, and other builtin non-plain objects', () => {
+    expect(toJsonSafe(new Date())).toBeUndefined()
+    expect(toJsonSafe(/x/)).toBeUndefined()
+    expect(toJsonSafe({ d: new Date(), r: /x/, ok: 1 })).toEqual({ ok: 1 })
+  })
+
+  it('converts non-finite numbers to null instead of emitting invalid JSON', () => {
+    expect(toJsonSafe(NaN)).toBeNull()
+    expect(toJsonSafe(Infinity)).toBeNull()
+    expect(toJsonSafe(-Infinity)).toBeNull()
+  })
+
+  it('replaces undefined array items with null but drops undefined object properties entirely', () => {
+    expect(toJsonSafe([1, undefined, 3])).toEqual([1, null, 3])
+    expect(toJsonSafe({ a: 1, b: undefined })).toEqual({ a: 1 })
+  })
+
+  it('preserves a shared (non-circular) reference reachable via two sibling paths', () => {
+    const shared = { value: 1 }
+    const result = toJsonSafe({ left: shared, right: shared })
+    expect(result).toEqual({ left: { value: 1 }, right: { value: 1 } })
+  })
+
+  it('never throws across a battery of hostile inputs', () => {
+    class Weird {
+      get boom(): never {
+        throw new Error('should never be invoked by toJsonSafe')
+      }
+    }
+    const cyclicArr: unknown[] = []
+    cyclicArr.push(cyclicArr)
+
+    const hostileInputs: unknown[] = [
+      undefined,
+      null,
+      () => {},
+      Symbol('x'),
+      10n,
+      new Map([['a', 1]]),
+      new WeakMap(),
+      new Set([1, 2]),
+      new Date(),
+      /regex/,
+      new Weird(),
+      cyclicArr,
+      { $$typeof: Symbol.for('react.element'), type: 'div', props: {} },
+      Object.create(null),
+      new Proxy({}, {}),
+      [1, [2, [3, [4, [5]]]]],
+      { a: { b: { c: { d: { e: 1 } } } } },
+    ]
+
+    for (const input of hostileInputs) {
+      expect(() => toJsonSafe(input)).not.toThrow()
+    }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Truncation visibility
+// ---------------------------------------------------------------------------
+
+describe('truncate', () => {
+  it('is distinguishable: a string that fits is unchanged, a string that overflows is marked', () => {
+    const exact = 'x'.repeat(10)
+    const overflow = 'x'.repeat(11)
+
+    const fitted = truncate(exact, 10)
+    const cut = truncate(overflow, 10)
+
+    expect(fitted).toBe(exact)
+    expect(fitted.endsWith('…')).toBe(false)
+    expect(cut).not.toBe(overflow)
+    expect(cut.endsWith('…')).toBe(true)
+    expect(cut).not.toBe(fitted)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// canonicalJson — recursive key sorting at every depth
+// ---------------------------------------------------------------------------
+
+describe('canonicalJson', () => {
+  it('sorts keys recursively at every nesting depth, not just the top level', () => {
+    const a = { z: 1, a: { z: 2, a: { z: 3, a: 1 } } }
+    const b = { a: { a: { a: 1, z: 3 }, z: 2 }, z: 1 }
+    expect(canonicalJson(a)).toBe(canonicalJson(b))
+  })
+
+  it('preserves array element order at every depth, including nested arrays of objects', () => {
+    const a = {
+      list: [
+        { b: 1, a: 2 },
+        { d: 1, c: 2 },
+      ],
+    }
+    const reordered = {
+      list: [
+        { a: 2, b: 1 },
+        { c: 2, d: 1 },
+      ],
+    } // same array order, keys reordered
+    const swapped = {
+      list: [
+        { c: 2, d: 1 },
+        { a: 2, b: 1 },
+      ],
+    } // array order swapped
+
+    expect(canonicalJson(a)).toBe(canonicalJson(reordered))
+    expect(canonicalJson(a)).not.toBe(canonicalJson(swapped))
+  })
+
+  it('is stable for deeply equal-but-differently-ordered inputs', () => {
+    const a = {
+      schema: { type: 'object', properties: { b: { type: 'number' }, a: { enum: ['x', 'y'] } } },
+    }
+    const b = {
+      schema: { properties: { a: { enum: ['x', 'y'] }, b: { type: 'number' } }, type: 'object' },
+    }
+    expect(canonicalJson(a)).toBe(canonicalJson(b))
+  })
+})
+
+// ---------------------------------------------------------------------------
+// §20 Mutation evidence bounds (core/result.ts)
+// ---------------------------------------------------------------------------
+
+describe('mutation evidence bounds', () => {
+  it('diff() truncates evidence strings at LIMITS.evidenceString, distinct from LIMITS.contextString', () => {
+    expect(LIMITS.evidenceString).not.toBe(LIMITS.contextString)
+    const long = 'z'.repeat(LIMITS.evidenceString + 100)
+    const change = diff('args.name', long, long)
+    expect(change.before).toBe(truncate(long, LIMITS.evidenceString))
+    expect(change.after).toBe(truncate(long, LIMITS.evidenceString))
+  })
+
+  it('diff() never returns source-code-sized or arbitrarily deep evidence', () => {
+    let deep: unknown = 'bottom'
+    for (let i = 0; i < LIMITS.objectDepth + 5; i++) deep = { child: deep }
+    const change = diff('args.thing', deep, deep)
+    // The value must have been bounded by toJsonSafe's depth cap, not passed through raw.
+    expect(JSON.stringify(change.before)).not.toBe(JSON.stringify(deep))
+  })
+
+  it('bounded() respects a caller-supplied maxString', () => {
+    const s = 'a'.repeat(50)
+    expect(bounded(s, 5)).toBe(truncate(s, 5))
+  })
+
+  it('changesFor() only reports keys whose value actually changed', () => {
+    const before = { rating: 1, kind: 'text', untouched: 'same' }
+    const after = { rating: 4, kind: 'text', untouched: 'same' }
+    const changes = changesFor('args', before, after, ['rating', 'kind', 'untouched'])
+    expect(changes).toHaveLength(1)
+    expect(changes[0]).toEqual({ path: 'args.rating', before: 1, after: 4 })
+  })
+
+  it('mutationResult() always carries changes as evidence, never a bare success flag', () => {
+    const result = mutationResult(
+      'update_controls',
+      'review--default',
+      [diff('args.rating', 1, 4)],
+      true
+    )
+    expect(result.ok).toBe(true)
+    expect(result.changes.length).toBeGreaterThan(0)
+    expect(result.changes[0]).toHaveProperty('before')
+    expect(result.changes[0]).toHaveProperty('after')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// §21 Standard error contract (core/errors.ts)
+// ---------------------------------------------------------------------------
+
+describe('error contract', () => {
+  const ALL_CODES: ErrorCode[] = [
+    'WEBMCP_UNAVAILABLE',
+    'STORYBOOK_NOT_READY',
+    'STORY_NOT_FOUND',
+    'NO_CURRENT_STORY',
+    'INVALID_INPUT',
+    'INVALID_VALUE',
+    'STALE_CONTEXT',
+    'UPDATE_NOT_APPLIED',
+    'NAVIGATION_TIMEOUT',
+    'UPDATE_TIMEOUT',
+    'INTERNAL_ERROR',
+  ]
+
+  it('exposes exactly the eleven documented codes via fail()', () => {
+    expect(ALL_CODES).toHaveLength(11)
+    for (const code of ALL_CODES) {
+      const result = fail(code, 'message', true)
+      expect(result).toEqual({ ok: false, error: { code, message: 'message', retryable: true } })
+    }
+  })
+
+  it.each([
+    ['staleContext', staleContext, 'STALE_CONTEXT'],
+    ['storyNotFound', storyNotFound, 'STORY_NOT_FOUND'],
+    ['noCurrentStory', noCurrentStory, 'NO_CURRENT_STORY'],
+    ['storybookNotReady', storybookNotReady, 'STORYBOOK_NOT_READY'],
+    ['updateNotApplied', updateNotApplied, 'UPDATE_NOT_APPLIED'],
+    ['navigationTimeout', navigationTimeout, 'NAVIGATION_TIMEOUT'],
+    ['updateTimeout', updateTimeout, 'UPDATE_TIMEOUT'],
+  ] as const)(
+    '%s() builds a well-formed %s envelope with no stack trace',
+    (_label, builder, code) => {
+      const result = builder()
+      expect(result.ok).toBe(false)
+      expect(result.error.code).toBe(code)
+      expect(typeof result.error.message).toBe('string')
+      expect(typeof result.error.retryable).toBe('boolean')
+      expect(result.error.message).not.toMatch(/at \S+ \(.*:\d+:\d+\)/) // no stack frame shape
+      expect(result.error).not.toHaveProperty('stack')
+    }
+  )
+
+  it('invalidValue()/invalidInput() carry the caller-supplied detail but stay INVALID_* coded', () => {
+    expect(invalidValue('rating must be <= 5')).toEqual({
+      ok: false,
+      error: { code: 'INVALID_VALUE', message: 'rating must be <= 5', retryable: true },
+    })
+    expect(invalidInput('bad shape')).toEqual({
+      ok: false,
+      error: { code: 'INVALID_INPUT', message: 'bad shape', retryable: true },
+    })
+  })
+
+  describe('internalError()', () => {
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    it('never exposes the cause, even when the cause looks like a stack trace', () => {
+      const cause = new Error('secret internal detail')
+      const result = internalError(cause)
+      expect(result.ok).toBe(false)
+      expect(result.error.code).toBe('INTERNAL_ERROR')
+      expect(result.error.message).not.toContain('secret internal detail')
+      expect(result.error.message).not.toContain(cause.stack ?? '')
+      expect(result.error.retryable).toBe(false)
+    })
+
+    it('never throws regardless of what is passed as cause', () => {
+      expect(() => internalError(undefined)).not.toThrow()
+      expect(() => internalError('a plain string')).not.toThrow()
+      expect(() => internalError({ circular: {} })).not.toThrow()
+    })
+
+    it('logs the detailed cause to the console in dev builds (this suite runs with DEV=true)', () => {
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const cause = new Error('only visible in dev console')
+      internalError(cause)
+      expect(spy).toHaveBeenCalledTimes(1)
+      expect(spy.mock.calls[0]).toContain(cause)
+    })
+
+    // Note: internalError() gates its console.error call behind
+    // `import.meta.env.DEV`, which each bundled module snapshots
+    // independently -- mutating it from a test module does not reach
+    // errors.ts's own snapshot, so the "silent outside dev" half of this
+    // contract cannot be exercised by toggling env at runtime in this
+    // suite. It is verified by inspection: the call is wrapped in
+    // `if (env?.DEV) { ... }` with no other console.* call in the module.
+  })
+
+  describe('abort semantics', () => {
+    it('abortError() produces a real AbortError that isAbortError() recognizes', () => {
+      const err = abortError()
+      expect(err).toBeInstanceOf(Error)
+      expect(err.name).toBe('AbortError')
+      expect(isAbortError(err)).toBe(true)
+    })
+
+    it('isAbortError() recognizes a native DOMException AbortError (e.g. from AbortController)', () => {
+      const controller = new AbortController()
+      controller.abort()
+      expect(isAbortError(controller.signal.reason)).toBe(true)
+    })
+
+    it('isAbortError() is false for ordinary errors and non-error values, never laundering them into success', () => {
+      expect(isAbortError(new Error('boom'))).toBe(false)
+      expect(isAbortError(new TypeError('nope'))).toBe(false)
+      expect(isAbortError(undefined)).toBe(false)
+      expect(isAbortError('AbortError')).toBe(false)
+      expect(isAbortError({ name: 'AbortError' })).toBe(false)
+    })
   })
 })

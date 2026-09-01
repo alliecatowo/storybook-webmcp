@@ -4,7 +4,7 @@
  * to what the Controls panel shows, instead of reimplementing "argTypes.if".
  */
 
-import { includeConditionalArg } from 'storybook/internal/csf'
+import { includeConditionalArgSafe } from './storybook-adapter.js'
 
 /**
  * True when an ArgType with an "if" predicate is currently visible given the
@@ -15,15 +15,11 @@ import { includeConditionalArg } from 'storybook/internal/csf'
 export function isConditionallyVisible(
   argType: unknown,
   args: Record<string, unknown>,
-  globals: Record<string, unknown>,
+  globals: Record<string, unknown>
 ): boolean {
   if (typeof argType !== 'object' || argType === null || !('if' in argType)) {
     return true
   }
 
-  try {
-    return includeConditionalArg(argType as Parameters<typeof includeConditionalArg>[0], args, globals)
-  } catch {
-    return false
-  }
+  return includeConditionalArgSafe(argType, args, globals)
 }

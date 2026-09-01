@@ -11,10 +11,34 @@ import {
   STORY_ARGS_UPDATED,
   GLOBALS_UPDATED,
 } from 'storybook/internal/core-events'
+import { includeConditionalArg } from 'storybook/internal/csf'
 import type { IndexStory, StoryRef, StorybookState } from '../core/types.js'
 import { TIMEOUTS } from '../core/constants.js'
+import { setOwn } from '../core/json.js'
 
 export type LifecycleEvent = 'story-changed' | 'story-prepared' | 'args-updated' | 'globals-updated'
+
+/**
+ * Storybook's conditional-arg predicate, kept at the Manager/API boundary so
+ * the compiler never imports Storybook internals directly. Malformed
+ * conditions are treated as hidden instead of crashing the addon.
+ */
+export function includeConditionalArgSafe(
+  argType: unknown,
+  args: Record<string, unknown>,
+  globals: Record<string, unknown>
+): boolean {
+  if (typeof argType !== 'object' || argType === null || !('if' in argType)) return true
+  try {
+    return includeConditionalArg(
+      argType as Parameters<typeof includeConditionalArg>[0],
+      args,
+      globals
+    )
+  } catch {
+    return false
+  }
+}
 
 export type StorybookAdapter = {
   getCurrentStory(): StoryRef | null
@@ -22,9 +46,11 @@ export type StorybookAdapter = {
   findStory(id: string): IndexStory | null
   selectStory(
     id: string,
-    signal?: AbortSignal,
+    signal?: AbortSignal
   ): Promise<{ before: string | null; after: string; verified: boolean }>
   getArgs(): Record<string, unknown>
+  /** Initial authored args used to verify reset operations when available. */
+  getInitialArgs?(): Record<string, unknown> | null
   getArgTypes(): Record<string, unknown>
   updateArgs(patch: Record<string, unknown>, signal?: AbortSignal): Promise<Record<string, unknown>>
   resetArgs(names?: string[], signal?: AbortSignal): Promise<Record<string, unknown>>
@@ -32,7 +58,10 @@ export type StorybookAdapter = {
   getUserGlobals(): Record<string, unknown>
   getStoryGlobals(): Record<string, unknown>
   getGlobalTypes(): Record<string, unknown>
-  updateGlobals(patch: Record<string, unknown>, signal?: AbortSignal): Promise<Record<string, unknown>>
+  updateGlobals(
+    patch: Record<string, unknown>,
+    signal?: AbortSignal
+  ): Promise<Record<string, unknown>>
   getViewportConfiguration(): unknown
   readState(): StorybookState
   subscribeToLifecycle(listener: (event: LifecycleEvent) => void): () => void
@@ -57,7 +86,7 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
 function detach(record: Record<string, unknown>): Record<string, unknown> {
   const copy: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(record)) {
-    copy[key] = isPlainRecord(value) ? { ...value } : value
+    setOwn(copy, key, isPlainRecord(value) ? { ...value } : value)
   }
   return copy
 }
@@ -72,6 +101,7 @@ function waitForEvent(
   events: string[],
   timeoutMs: number,
   signal: AbortSignal | undefined,
+  acceptEvent?: (event: string, args: unknown[]) => boolean
 ): Promise<{ fired: boolean }> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
@@ -84,16 +114,20 @@ function waitForEvent(
     let settled = false
     let timer: ReturnType<typeof setTimeout> | undefined
 
+    const handlers = new Map<string, (...args: unknown[]) => void>()
+
     const cleanup = () => {
       if (timer !== undefined) clearTimeout(timer)
       for (const event of events) {
-        channel?.off(event, onEvent)
+        const handler = handlers.get(event)
+        if (handler) channel?.off(event, handler)
       }
       signal?.removeEventListener('abort', onAbort)
     }
 
-    const onEvent = () => {
+    const onEvent = (event: string, args: unknown[]) => {
       if (settled) return
+      if (acceptEvent && !acceptEvent(event, args)) return
       settled = true
       cleanup()
       resolve({ fired: true })
@@ -114,7 +148,9 @@ function waitForEvent(
     }
 
     for (const event of events) {
-      channel?.on(event, onEvent)
+      const handler = (...args: unknown[]) => onEvent(event, args)
+      handlers.set(event, handler)
+      channel?.on(event, handler)
     }
     signal?.addEventListener('abort', onAbort)
     timer = setTimeout(onTimeout, timeoutMs)
@@ -135,12 +171,13 @@ async function waitAndVerify<T>(
   perform: () => void,
   readResult: () => T,
   isVerified: (result: T) => boolean,
+  acceptEvent?: (event: string, args: unknown[]) => boolean
 ): Promise<{ result: T; verified: boolean }> {
   if (signal?.aborted) {
     throw abortError()
   }
 
-  const waiter = waitForEvent(api, events, timeoutMs, signal)
+  const waiter = waitForEvent(api, events, timeoutMs, signal, acceptEvent)
   perform()
   const { fired } = await waiter
   const result = readResult()
@@ -161,11 +198,12 @@ export function createStorybookAdapter(api: API): StorybookAdapter {
   const getCurrentStory = (): StoryRef | null => {
     const entry = getEntry()
     if (!entry || entry.type !== 'story') return null
+    const rawViewMode = (entry as unknown as { viewMode?: unknown }).viewMode
     return {
       id: entry.id,
       title: entry.title ?? '',
       name: entry.name ?? '',
-      viewMode: 'story',
+      viewMode: typeof rawViewMode === 'string' ? rawViewMode : 'story',
     }
   }
 
@@ -187,20 +225,23 @@ export function createStorybookAdapter(api: API): StorybookAdapter {
   }
 
   const findStory = (id: string): IndexStory | null => {
-    let entry
-    try {
-      entry = api.getData?.(id)
-    } catch {
-      entry = undefined
-    }
-    if (!entry || entry.type !== 'story') return null
-    return { id: entry.id, title: entry.title ?? '', name: entry.name ?? '' }
+    // Resolve against the current Storybook index, rather than a generic
+    // `getData` lookup that could resolve a referenced/hidden entry. This is
+    // the exact bounded story set exposed by `storybook_find_stories` and the
+    // same set `storybook_open_story` is allowed to navigate to.
+    return getStoryIndex().find((entry) => entry.id === id) ?? null
   }
 
   const getArgs = (): Record<string, unknown> => {
     const entry = getEntry()
     const args = (entry as { args?: unknown } | undefined)?.args
     return isPlainRecord(args) ? detach(args) : {}
+  }
+
+  const getInitialArgs = (): Record<string, unknown> | null => {
+    const entry = getEntry()
+    const initialArgs = (entry as { initialArgs?: unknown } | undefined)?.initialArgs
+    return isPlainRecord(initialArgs) ? detach(initialArgs) : null
   }
 
   const getArgTypes = (): Record<string, unknown> => {
@@ -261,9 +302,16 @@ export function createStorybookAdapter(api: API): StorybookAdapter {
       [STORY_CHANGED, STORY_PREPARED],
       TIMEOUTS.navigation,
       signal,
-      () => api.selectStory(id),
+      // Force the normal story view; this is the exact Manager navigation
+      // surface and avoids accidentally opening a docs view for the id.
+      () => api.selectStory(id, undefined, { viewMode: 'story' }),
       () => getCurrentStory()?.id ?? null,
       (currentId) => currentId === id,
+      // STORY_CHANGED means the selection changed, but Storybook may still be
+      // preparing the requested story. Resolve the wait only after the target
+      // story's STORY_PREPARED event; if that event is missed, the final
+      // authoritative read still allows a verified success at the timeout.
+      (event) => event === STORY_PREPARED && getCurrentStory()?.id === id
     )
 
     return { before, after: id, verified }
@@ -283,7 +331,7 @@ export function createStorybookAdapter(api: API): StorybookAdapter {
         }
       },
       () => getArgs(),
-      (args) => Object.entries(patch).every(([key, value]) => args[key] === value),
+      (args) => Object.entries(patch).every(([key, value]) => args[key] === value)
     )
 
     return result
@@ -303,7 +351,7 @@ export function createStorybookAdapter(api: API): StorybookAdapter {
         }
       },
       () => getArgs(),
-      () => true,
+      () => true
     )
 
     return result
@@ -317,7 +365,7 @@ export function createStorybookAdapter(api: API): StorybookAdapter {
       signal,
       () => api.updateGlobals(patch),
       () => getGlobals(),
-      (globals) => Object.entries(patch).every(([key, value]) => globals[key] === value),
+      (globals) => Object.entries(patch).every(([key, value]) => globals[key] === value)
     )
 
     return result
@@ -361,6 +409,7 @@ export function createStorybookAdapter(api: API): StorybookAdapter {
     findStory,
     selectStory,
     getArgs,
+    getInitialArgs,
     getArgTypes,
     updateArgs,
     resetArgs,

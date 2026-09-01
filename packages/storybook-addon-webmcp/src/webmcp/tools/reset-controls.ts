@@ -7,17 +7,36 @@
 import type { StorybookAdapter } from '../../storybook/storybook-adapter.js'
 import { assertFresh } from '../../storybook/lifecycle.js'
 import { validateOrFail } from '../validate.js'
-import { abortError } from '../../core/errors.js'
+import { abortError, internalError, isAbortError } from '../../core/errors.js'
 import { changesFor, mutationResult } from '../../core/result.js'
-import { TOOL_RESET_CONTROLS_PREFIX } from '../../core/constants.js'
+import { LIMITS, TOOL_RESET_CONTROLS_PREFIX } from '../../core/constants.js'
 import type { Capability, ObjectSchema } from '../../core/types.js'
 import type { ToolDescriptor } from '../webmcp-types.js'
+import { setOwn, toJsonSafe } from '../../core/json.js'
+
+/**
+ * Storybook's `args` record simply omits a key the human never explicitly
+ * set; reading it back then yields `undefined`. `undefined` is not a JSON
+ * value, so a Change carrying it as `before`/`after` silently loses that key
+ * once the result crosses a JSON boundary (spec §20's "always return
+ * evidence" guarantee would otherwise be broken for exactly this case).
+ * Normalizing to `null` -- a real, JSON-safe "absence" value -- keeps every
+ * Change carrying both keys.
+ */
+function toEvidenceValue(value: unknown): unknown {
+  if (value === undefined) return null
+  return toJsonSafe(value, { maxString: LIMITS.evidenceString }) ?? null
+}
+
+function valuesEqual(a: unknown, b: unknown): boolean {
+  return Object.is(a, b) || JSON.stringify(a) === JSON.stringify(b)
+}
 
 /** Builds the reset-controls tool closure for the current control capability. */
 export function createResetControlsTool(
   adapter: StorybookAdapter,
   capability: Capability,
-  editable: string[],
+  editable: string[]
 ): ToolDescriptor {
   const inputSchema: ObjectSchema = {
     type: 'object',
@@ -44,31 +63,48 @@ export function createResetControlsTool(
     execute: async (input, context) => {
       if (context?.signal?.aborted) throw abortError()
 
-      const stale = await assertFresh(
-        adapter,
-        { storyId: capability.storyId, hash: capability.hash },
-        'controls',
-      )
-      if (stale) return stale
+      try {
+        const stale = await assertFresh(
+          adapter,
+          { storyId: capability.storyId, hash: capability.hash },
+          'controls'
+        )
+        if (stale) return stale
 
-      const invalid = validateOrFail(inputSchema, input)
-      if (invalid) return invalid
+        const invalid = validateOrFail(inputSchema, input)
+        if (invalid) return invalid
 
-      const requested = (input as { controls?: string[] } | null)?.controls
-      const names = requested && requested.length > 0 ? requested : editable
+        const requested = (input as { controls?: string[] } | null)?.controls
+        const names = requested && requested.length > 0 ? requested : editable
 
-      const before = adapter.getArgs()
-      const beforeSnapshot: Record<string, unknown> = {}
-      for (const name of names) beforeSnapshot[name] = before[name]
+        const before = adapter.getArgs()
+        const beforeSnapshot: Record<string, unknown> = {}
+        for (const name of names) setOwn(beforeSnapshot, name, toEvidenceValue(before[name]))
 
-      const after = await adapter.resetArgs(names, context?.signal)
+        const after = await adapter.resetArgs(names, context?.signal)
 
-      const confirmed = adapter.getArgs()
-      const verified = names.every((name) => Object.is(confirmed[name], after[name]))
+        const confirmed = adapter.getArgs()
+        const initial = adapter.getInitialArgs?.()
+        // A real Manager adapter can expose Storybook's authored initialArgs,
+        // which gives reset a meaningful verification target. Test/alternate
+        // adapters that cannot expose it still receive a final authoritative
+        // read from resetArgs and are checked against that read.
+        const verified = names.every((name) =>
+          initial
+            ? valuesEqual(confirmed[name], initial[name])
+            : valuesEqual(confirmed[name], after[name])
+        )
 
-      const changes = changesFor('args', beforeSnapshot, after, names)
+        const afterSnapshot: Record<string, unknown> = {}
+        for (const name of names) setOwn(afterSnapshot, name, toEvidenceValue(confirmed[name]))
 
-      return mutationResult('reset_controls', capability.storyId, changes, verified)
+        const changes = changesFor('args', beforeSnapshot, afterSnapshot, names, before, confirmed)
+
+        return mutationResult('reset_controls', capability.storyId, changes, verified)
+      } catch (error) {
+        if (isAbortError(error)) throw error
+        return internalError(error)
+      }
     },
   }
 }

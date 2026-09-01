@@ -52,7 +52,11 @@ describe('control compiler — §13 control compilation rules', () => {
   })
 
   it('number control copies min/max/positive-step to minimum/maximum/multipleOf', () => {
-    const result = compileArgType({ control: { type: 'number', min: 0, max: 5, step: 0.1 } }, {}, {})
+    const result = compileArgType(
+      { control: { type: 'number', min: 0, max: 5, step: 0.1 } },
+      {},
+      {}
+    )
     expect(result?.schema).toEqual({ type: 'number', minimum: 0, maximum: 5, multipleOf: 0.1 })
   })
 
@@ -84,6 +88,70 @@ describe('control compiler — §13 control compilation rules', () => {
     expect(result?.schema.multipleOf).toBeUndefined()
   })
 
+  it('a negative step is not copied to multipleOf', () => {
+    const result = compileArgType({ control: { type: 'number', step: -1 } }, {}, {})
+    expect(result?.schema).toEqual({ type: 'number' })
+    expect(result?.schema.multipleOf).toBeUndefined()
+  })
+
+  it('a NaN step is not copied to multipleOf', () => {
+    const result = compileArgType({ control: { type: 'number', step: Number.NaN } }, {}, {})
+    expect(result?.schema).toEqual({ type: 'number' })
+    expect(result?.schema.multipleOf).toBeUndefined()
+  })
+
+  it('an infinite step is not copied to multipleOf', () => {
+    const result = compileArgType(
+      { control: { type: 'number', step: Number.POSITIVE_INFINITY } },
+      {},
+      {}
+    )
+    expect(result?.schema).toEqual({ type: 'number' })
+    expect(result?.schema.multipleOf).toBeUndefined()
+  })
+
+  it('a NaN min is not copied to minimum', () => {
+    const result = compileArgType({ control: { type: 'number', min: Number.NaN } }, {}, {})
+    expect(result?.schema).toEqual({ type: 'number' })
+    expect(result?.schema.minimum).toBeUndefined()
+  })
+
+  it('a NaN max is not copied to maximum', () => {
+    const result = compileArgType({ control: { type: 'number', max: Number.NaN } }, {}, {})
+    expect(result?.schema).toEqual({ type: 'number' })
+    expect(result?.schema.maximum).toBeUndefined()
+  })
+
+  it('an infinite min is not copied to minimum', () => {
+    const result = compileArgType(
+      { control: { type: 'number', min: Number.NEGATIVE_INFINITY } },
+      {},
+      {}
+    )
+    expect(result?.schema).toEqual({ type: 'number' })
+    expect(result?.schema.minimum).toBeUndefined()
+  })
+
+  it('an infinite max is not copied to maximum', () => {
+    const result = compileArgType(
+      { control: { type: 'number', max: Number.POSITIVE_INFINITY } },
+      {},
+      {}
+    )
+    expect(result?.schema).toEqual({ type: 'number' })
+    expect(result?.schema.maximum).toBeUndefined()
+  })
+
+  it('a fully finite min/max/step compiles all three bounds together', () => {
+    const result = compileArgType(
+      { control: { type: 'number', min: Number.NaN, max: 5, step: -2 } },
+      {},
+      {}
+    )
+    // Only the safe bound (max) survives; the unsafe min and step are dropped independently.
+    expect(result?.schema).toEqual({ type: 'number', maximum: 5 })
+  })
+
   for (const controlType of ['select', 'radio', 'inline-radio']) {
     it(`${controlType} compiles to a bounded enum with a shared primitive type`, () => {
       const result = compileArgType({ control: controlType, options: ['a', 'b', 'c'] }, {}, {})
@@ -112,6 +180,11 @@ describe('control compiler — §13 control compilation rules', () => {
     })
   }
 
+  it('file control is never exposed, string control form', () => {
+    const result = compileArgType({ control: 'file' }, {}, {})
+    expect(result).toBeNull()
+  })
+
   it('mapping exposes only the option keys, never the mapped JSX value', () => {
     const mappedJsx = { $$typeof: Symbol.for('react.element'), type: 'b', props: {} }
     const result = compileArgType(
@@ -121,7 +194,7 @@ describe('control compiler — §13 control compilation rules', () => {
         mapping: { Bold: mappedJsx, Italic: { nested: 'markup' } },
       },
       {},
-      {},
+      {}
     )
     expect(result?.schema).toEqual({ type: 'string', enum: ['Normal', 'Bold', 'Italic'] })
     const serialized = JSON.stringify(result?.schema)
@@ -131,6 +204,18 @@ describe('control compiler — §13 control compilation rules', () => {
 })
 
 describe('control compiler — §14 structured types', () => {
+  it('SB enum semantic type compiles like a select, with type present for a consistent primitive type', () => {
+    const result = compileArgType({ type: { name: 'enum', value: ['a', 'b', 'c'] } }, {}, {})
+    expect(result?.schema).toEqual({ enum: ['a', 'b', 'c'], type: 'string' })
+    expect(result?.descriptor.kind).toBe('enum')
+  })
+
+  it('SB enum with more than LIMITS.options values is rejected', () => {
+    const values = Array.from({ length: LIMITS.options + 1 }, (_, i) => `v${i}`)
+    const result = compileArgType({ type: { name: 'enum', value: values } }, {}, {})
+    expect(result).toBeNull()
+  })
+
   it('SB array with a safely-compiling child produces a bounded array schema', () => {
     const result = compileArgType({ type: { name: 'array', value: { name: 'string' } } }, {}, {})
     expect(result?.schema).toEqual({
@@ -157,7 +242,7 @@ describe('control compiler — §14 structured types', () => {
         },
       },
       {},
-      {},
+      {}
     )
     expect(result?.schema).toEqual({
       type: 'object',
@@ -174,7 +259,7 @@ describe('control compiler — §14 structured types', () => {
     const result = compileArgType(
       { type: { name: 'object', value: { fn: { name: 'function' }, sym: { name: 'symbol' } } } },
       {},
-      {},
+      {}
     )
     expect(result).toBeNull()
   })
@@ -238,6 +323,23 @@ describe('control compiler — unsupported semantic types are always skipped', (
     const result = compileArgType({ type: { name: 'other' } }, {}, {})
     expect(result).toBeNull()
   })
+
+  it('never infers a schema from the shape of the current runtime value: a JSON-serializable current value with no safe semantic type is skipped', () => {
+    // args.config is a perfectly JSON-safe plain object, but the ArgType carries neither a
+    // recognized control nor a safe SBType (an "object" control alone is not a semantic type),
+    // so the compiler must not guess a schema from args.config's shape (spec §14 final paragraph).
+    const result = compileArgType(
+      { control: 'object' },
+      { config: { a: 1, b: 'two', nested: { c: true } } },
+      {}
+    )
+    expect(result).toBeNull()
+  })
+
+  it('never infers a schema from the shape of the current runtime value: an unrecognized SBType with a JSON-safe current value is skipped', () => {
+    const result = compileArgType({ type: { name: 'other' } }, { config: { a: 1, b: 'two' } }, {})
+    expect(result).toBeNull()
+  })
 })
 
 describe('control compiler — §14 bounds', () => {
@@ -251,7 +353,7 @@ describe('control compiler — §14 bounds', () => {
         },
       },
       {},
-      {},
+      {}
     )
     expect(result).not.toBeNull()
     expect(result?.schema).toEqual({
@@ -283,7 +385,7 @@ describe('control compiler — §14 bounds', () => {
         },
       },
       {},
-      {},
+      {}
     )
     expect(result).toBeNull()
   })
@@ -310,6 +412,34 @@ describe('control compiler — §14 bounds', () => {
   it('string bound: text control maxLength is exactly LIMITS.stringControl', () => {
     const result = compileArgType({ control: 'text' }, {}, {})
     expect(result?.schema.maxLength).toBe(LIMITS.stringControl)
+  })
+
+  it('object property limit: an object with exactly LIMITS.objectProperties children compiles all of them', () => {
+    const value: Record<string, unknown> = {}
+    for (let i = 0; i < LIMITS.objectProperties; i++) {
+      value[`p${String(i).padStart(2, '0')}`] = { name: 'string' }
+    }
+    const result = compileArgType({ type: { name: 'object', value } }, {}, {})
+    expect(result).not.toBeNull()
+    expect(result).not.toBeNull()
+    const compiled = result as NonNullable<typeof result>
+    expect(
+      Object.keys((compiled.schema as { properties: Record<string, unknown> }).properties)
+    ).toHaveLength(LIMITS.objectProperties)
+  })
+
+  it('object property limit: an object with more than LIMITS.objectProperties children is truncated to the first LIMITS.objectProperties in sorted key order', () => {
+    const value: Record<string, unknown> = {}
+    for (let i = 0; i < LIMITS.objectProperties + 1; i++) {
+      value[`p${String(i).padStart(2, '0')}`] = { name: 'string' }
+    }
+    const result = compileArgType({ type: { name: 'object', value } }, {}, {})
+    expect(result).not.toBeNull()
+    const compiledObject = result as NonNullable<typeof result>
+    const properties = (compiledObject.schema as { properties: Record<string, unknown> }).properties
+    expect(Object.keys(properties)).toHaveLength(LIMITS.objectProperties)
+    // Sorted ascending, so the truncated child is the highest-indexed key.
+    expect(properties[`p${String(LIMITS.objectProperties).padStart(2, '0')}`]).toBeUndefined()
   })
 })
 

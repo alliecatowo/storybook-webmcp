@@ -2,7 +2,7 @@
 
 **Your agent shouldn't have its own Storybook. It should work in yours.**
 
-*Same story. Same state. Same screen. Human and agent.*
+_Same story. Same state. Same screen. Human and agent._
 
 **[Demo GIF/video placeholder — a browser agent editing the Review rating and the Controls panel moving with it]**
 
@@ -16,13 +16,13 @@ There is exactly one authoritative state: Storybook's own Manager state. The add
 
 ## Demo
 
-1. Human has `Components/Review/Default` open. Agent asks the addon: *"What am I looking at?"* → `storybook_get_context` returns the story, the `rating` control (`number`, 0–5, step 0.1), and the current value.
-2. *"Make this a one-star review."* → the agent calls the versioned `storybook_update_controls.<hash>` tool with `{ rating: 1 }`. The Controls panel slider and the preview both move.
+1. Human has `Components/Review/Default` open. Agent asks the addon: _"What am I looking at?"_ → `storybook_get_context` returns the story, the `rating` control (`number`, 0–5, step 0.1), and the current value.
+2. _"Make this a one-star review."_ → the agent calls the versioned `storybook_update_controls.<hash>` tool with `{ rating: 1 }`. The Controls panel slider and the preview both move.
 3. The human manually drags the slider to `4.3`. No agent call happens.
-4. *"Keep the rating I just chose, but show this in dark mode on a phone."* → the agent calls `storybook_update_globals.<hash>` with `{ theme: "dark", viewport: { value: "mobile1" } }`. Rating stays `4.3` — the globals tool never touches `args`.
+4. _"Keep the rating I just chose, but show this in dark mode on a phone."_ → the agent calls `storybook_update_globals.<hash>` with `{ theme: "dark", viewport: { value: "mobile1" } }`. Rating stays `4.3` — the globals tool never touches `args`.
 5. The human manually navigates to `Components/Icon/Playground`. The Review capability is aborted; a new `storybook_update_controls.<hash>` (different hash) appears with an `enum` of the real Icon names.
-6. *"Make this a star."* → `{ name: "star" }` against the new capability.
-7. *"Find and open the checkout flow."* → `storybook_find_stories({ query: "checkout" })` then `storybook_open_story({ storyId })` navigates to `UserFlows/App`, whose Storybook `play` function runs the way it always does on render.
+6. _"Make this a star."_ → `{ name: "star" }` against the new capability.
+7. _"Find and open the checkout flow."_ → `storybook_find_stories({ query: "checkout" })` then `storybook_open_story({ storyId })` navigates to `UserFlows/App`, whose Storybook `play` function runs the way it always does on render.
 
 ## Install
 
@@ -97,7 +97,17 @@ The compiler (`src/storybook/control-compiler.ts`, `src/storybook/global-compile
   "type": "object",
   "properties": {
     "name": {
-      "enum": ["arrow-right", "arrow-left", "cross", "cart", "minus", "plus", "moon", "sun", "star"],
+      "enum": [
+        "arrow-right",
+        "arrow-left",
+        "cross",
+        "cart",
+        "minus",
+        "plus",
+        "moon",
+        "sun",
+        "star"
+      ],
       "type": "string",
       "description": "Current Storybook control for name."
     },
@@ -111,7 +121,7 @@ The compiler (`src/storybook/control-compiler.ts`, `src/storybook/global-compile
 }
 ```
 
-Review's globals schema (tool `storybook_update_globals.0f991828`), from MealDrop's real `theme` globalType and its full configured `viewport.options` (five design-token breakpoints plus Storybook's built-in device set, 34 values total):
+Review's globals schema (tool `storybook_update_globals.9e30720d`), from MealDrop's real `theme` globalType and its full configured `viewport.options` (five design-token breakpoints, Storybook's 32 built-in devices, plus the current `responsive` value, 38 enum values total):
 
 ```json
 {
@@ -127,7 +137,16 @@ Review's globals schema (tool `storybook_update_globals.0f991828`), from MealDro
       "properties": {
         "value": {
           "type": "string",
-          "enum": ["breakpointXS", "breakpointS", "breakpointM", "breakpointL", "breakpointXL", "iphone5", "…", "responsive"]
+          "enum": [
+            "breakpointXS",
+            "breakpointS",
+            "breakpointM",
+            "breakpointL",
+            "breakpointXL",
+            "iphone5",
+            "…",
+            "responsive"
+          ]
         },
         "isRotated": { "type": "boolean" }
       },
@@ -144,14 +163,14 @@ Note there is no top-level `required` for individual controls — only `minPrope
 
 ## Six tools
 
-| Tool | Title | readOnlyHint | untrustedContentHint |
-| --- | --- | --- | --- |
-| `storybook_get_context` | Inspect current Storybook context | `true` | `true` |
-| `storybook_find_stories` | Find Storybook stories | `true` | `true` |
-| `storybook_open_story` | Open a Storybook story | `false` | `true` |
-| `storybook_update_controls.<hash>` | Update current Storybook controls | `false` | `true` |
-| `storybook_reset_controls.<hash>` | Reset current Storybook controls | `false` | `true` |
-| `storybook_update_globals.<hash>` | Update Storybook global controls | `false` | `true` |
+| Tool                               | Title                             | readOnlyHint | untrustedContentHint |
+| ---------------------------------- | --------------------------------- | ------------ | -------------------- |
+| `storybook_get_context`            | Inspect current Storybook context | `true`       | `true`               |
+| `storybook_find_stories`           | Find Storybook stories            | `true`       | `true`               |
+| `storybook_open_story`             | Open a Storybook story            | `false`      | `true`               |
+| `storybook_update_controls.<hash>` | Update current Storybook controls | `false`      | `true`               |
+| `storybook_reset_controls.<hash>`  | Reset current Storybook controls  | `false`      | `true`               |
+| `storybook_update_globals.<hash>`  | Update Storybook global controls  | `false`      | `true`               |
 
 The first three are stable for the Manager session. The last three exist only while a corresponding capability exists for the current story — `storybook_update_globals` is omitted entirely when nothing safe is exposed, and there is no global-reset tool.
 
@@ -161,7 +180,7 @@ Every tool reads Storybook state at invocation time — there is no cache. `stor
 
 ## Dynamic capability lifecycle
 
-Ordinary value edits — the human dragging the rating slider, the agent submitting a valid patch — never change which tools are registered, because the compiled schema is the same schema regardless of what value currently sits in it. What *does* change the schema: navigating to a different story, or an `argTypes.if` conditional flipping a control's visibility. Both recompute the capability and, if the fingerprint actually differs, abort the old dynamic `AbortController` and register a fresh one under a new hash-suffixed name (`storybook_update_controls.<hash>`). The tool name is never reused for a different schema under the same suffix, and the human-facing `title` never changes — only machine identity does, so an agent holding a stale tool reference can't accidentally resolve it to a different capability.
+Ordinary value edits — the human dragging the rating slider, the agent submitting a valid patch — never change which tools are registered, because the compiled schema is the same schema regardless of what value currently sits in it. What _does_ change the schema: navigating to a different story, or an `argTypes.if` conditional flipping a control's visibility. Both recompute the capability and, if the fingerprint actually differs, abort the old dynamic `AbortController` and register a fresh one under a new hash-suffixed name (`storybook_update_controls.<hash>`). The tool name is never reused for a different schema under the same suffix, and the human-facing `title` never changes — only machine identity does, so an agent holding a stale tool reference can't accidentally resolve it to a different capability.
 
 Every dynamic tool closure captures the story id and capability hash it was compiled against. Before mutating anything, it re-derives the current capability and compares; if the story changed or the schema changed underneath it, the tool does nothing and returns `STALE_CONTEXT` rather than mutating the wrong story. A Review capability can never edit Icon just because the agent called it late.
 
@@ -171,9 +190,9 @@ The capability surface is closed by construction, not by a runtime blocklist. Th
 
 ## Evals
 
-The unit/integration suite (`packages/storybook-addon-webmcp/tests/`) runs locally against synthetic and real MealDrop fixtures and currently passes in full: 8 test files, 157 tests (`yarn vitest run --project=node packages/storybook-addon-webmcp/tests`), covering the control/global compilers, capability hashing and identity, runtime Ajv validation, stale-context rejection, and dynamic-registration lifecycle (including "value change never churns tools" and "story change removes tools before re-registering").
+The unit/integration suite (`packages/storybook-addon-webmcp/tests/`) runs locally against synthetic and real MealDrop fixtures via `yarn vitest run --project=node` and passes, covering the control/global compilers, capability hashing and identity, runtime Ajv validation, stale-context rejection, and dynamic-registration lifecycle (including "value change never churns tools" and "story change removes tools before re-registering").
 
-The eight scenario-level evals described in the spec (context, constrained mutation, invalid-bound rejection, the human/agent shared-state moment, dynamic capability swap, stale-context protection, navigation, reset) are implemented as a Playwright script at `evals/run-evals.mjs`, driving a real built Storybook against a WebMCP polyfill. **These have not yet been run against a real WebMCP-capable browser and MealDrop build in this environment** — `evals/results.json` does not exist yet. Treat the eight scenarios as pending real-browser validation, not as reported results.
+The eight scenario-level evals described in the spec (context, constrained mutation, invalid-bound rejection, the human/agent shared-state moment, dynamic capability swap, stale-context protection, navigation, reset), plus two extra lifecycle checks, are implemented as a Playwright script at `evals/run-evals.mjs` and have been run against a real built Storybook served over HTTP in headless Chromium, through a hand-written `document.modelContext` polyfill (`evals/webmcp-polyfill.js`) — headless Chromium has no native WebMCP implementation to drive against. The recorded result (`evals/results.json`) is 10 of 10 cases passing. **This proves the addon's own registration lifecycle, schema generation, and verification behave correctly; it does not prove that a real agent, talking to a real browser's `document.modelContext`, discovers and uses these tools from natural language.** Validation against an actual WebMCP-capable browser agent (Chrome's native WebMCP surface, or a ChatGPT/Claude site-tools integration) per spec §43/§44 has not been done and remains pending.
 
 ## Browser support
 
@@ -194,7 +213,7 @@ yarn vitest run --project=node packages/storybook-addon-webmcp/tests
 
 MealDrop — the app, its components, its existing Storybook stories, its Redux store, its routing — is Yann Braga's pre-existing demo application, forked as-is to serve as a real Storybook to demonstrate against. It was not written for this challenge.
 
-Everything under `packages/storybook-addon-webmcp/` was written for this challenge: the addon shell, the Storybook adapter, the ArgType/global compilers, capability hashing and versioning, the WebMCP registry and dynamic-registration lifecycle, all six tools, the diagnostic panel, and the test suite. The addon package itself contains zero imports from MealDrop source and hardcodes no MealDrop story IDs, theme names, or icon names — it works because MealDrop *is* a Storybook, not because it knows anything about MealDrop specifically. The only MealDrop-side change was disabling the pre-existing `@storybook/addon-mcp` entry in `.storybook/main.ts` and adding `storybook-addon-webmcp` in its place, so no traditional MCP server starts alongside the WebMCP demo.
+Everything under `packages/storybook-addon-webmcp/` was written for this challenge: the addon shell, the Storybook adapter, the ArgType/global compilers, capability hashing and versioning, the WebMCP registry and dynamic-registration lifecycle, all six tools, the diagnostic panel, and the test suite. The addon package itself contains zero imports from MealDrop source and hardcodes no MealDrop story IDs, theme names, or icon names — it works because MealDrop _is_ a Storybook, not because it knows anything about MealDrop specifically. The only MealDrop-side change was disabling the pre-existing `@storybook/addon-mcp` entry in `.storybook/main.ts` and adding `storybook-addon-webmcp` in its place, so no traditional MCP server starts alongside the WebMCP demo.
 
 Storybook also supports traditional MCP integrations for coding-agent workflows; Storybook WebMCP is intentionally a separate live-browser integration and does not depend on an MCP server.
 

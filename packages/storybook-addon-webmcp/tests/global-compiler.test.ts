@@ -6,7 +6,12 @@ import type { StorybookState } from '../src/core/types.js'
 /** Builds a minimal, valid StorybookState, overridden per test (spec §40 "Globals"). */
 function baseState(overrides: Partial<StorybookState> = {}): StorybookState {
   return {
-    story: { id: 'invented--example', title: 'Invented/Example', name: 'Example', viewMode: 'story' },
+    story: {
+      id: 'invented--example',
+      title: 'Invented/Example',
+      name: 'Example',
+      viewMode: 'story',
+    },
     args: {},
     argTypes: {},
     globals: {},
@@ -36,7 +41,9 @@ describe('compileGlobals (spec §40 Globals)', () => {
       enum: ['en', 'fr', 'de'],
       description: 'Interface locale',
     })
-    expect(compiled.editable).toEqual([{ name: 'locale', description: 'Interface locale', options: ['en', 'fr', 'de'] }])
+    expect(compiled.editable).toEqual([
+      { name: 'locale', description: 'Interface locale', options: ['en', 'fr', 'de'] },
+    ])
   })
 
   it('exposes the same enum when toolbar items are { value, title } objects', () => {
@@ -77,6 +84,20 @@ describe('compileGlobals (spec §40 Globals)', () => {
     expect(compiled.editable).toEqual([])
   })
 
+  it('exposes a global whose toolbar has exactly LIMITS.options selectable items (boundary)', () => {
+    const exactlyMax = Array.from({ length: LIMITS.options }, (_, i) => `opt-${i}`)
+    const state = baseState({
+      globalTypes: {
+        atLimit: { toolbar: { items: exactlyMax } },
+      },
+    })
+
+    const compiled = compileGlobals(state)
+
+    expect(compiled.schema).not.toBeNull()
+    expect(compiled.schema?.properties.atLimit).toEqual({ type: 'string', enum: exactlyMax })
+  })
+
   it('omits a global whose toolbar has more than LIMITS.options selectable items', () => {
     const tooMany = Array.from({ length: LIMITS.options + 1 }, (_, i) => `opt-${i}`)
     const state = baseState({
@@ -96,10 +117,7 @@ describe('compileGlobals (spec §40 Globals)', () => {
       globalTypes: {
         weird: {
           toolbar: {
-            items: [
-              { value: 'ok' },
-              { value: { nested: 'not primitive' } },
-            ],
+            items: [{ value: 'ok' }, { value: { nested: 'not primitive' } }],
           },
         },
       },
@@ -109,6 +127,27 @@ describe('compileGlobals (spec §40 Globals)', () => {
 
     expect(compiled.schema).toBeNull()
     expect(compiled.editable).toEqual([])
+  })
+
+  it('ignores separators and no-value items, yielding the same enum as the value-only items', () => {
+    const state = baseState({
+      globalTypes: {
+        locale: {
+          toolbar: {
+            items: [
+              { value: 'en', title: 'English' },
+              { id: 'sep-1', type: 'separator' },
+              'fr',
+              null,
+            ],
+          },
+        },
+      },
+    })
+
+    const compiled = compileGlobals(state)
+
+    expect(compiled.schema?.properties.locale).toEqual({ type: 'string', enum: ['en', 'fr'] })
   })
 
   it('omits a global that the current story locks via storyGlobals (spec §29)', () => {
@@ -142,12 +181,69 @@ describe('compileGlobals (spec §40 Globals)', () => {
     expect(compiled.viewport).toBeUndefined()
   })
 
+  it('omits viewport when the current story locks it via storyGlobals (spec §29)', () => {
+    const state = baseState({
+      viewportParameter: {
+        options: {
+          mobile1: { name: 'Small mobile', styles: { width: '320px', height: '568px' } },
+        },
+      },
+      globals: { viewport: 'mobile1' },
+      storyGlobals: { viewport: 'mobile1' },
+    })
+
+    const compiled = compileGlobals(state)
+
+    expect(compiled.schema).toBeNull()
+    expect(compiled.viewport).toBeUndefined()
+    expect(compiled.editable).toEqual([])
+  })
+
+  it('omits viewport when parameters.viewport.options has no valid options', () => {
+    const state = baseState({
+      viewportParameter: { options: {} },
+      globals: { viewport: 'mobile1' },
+    })
+
+    const compiled = compileGlobals(state)
+
+    expect(compiled.schema).toBeNull()
+    expect(compiled.viewport).toBeUndefined()
+  })
+
+  it('caps the viewport value enum and context options at LIMITS.viewportOptions', () => {
+    const options: Record<string, unknown> = {}
+    for (let i = 0; i < LIMITS.viewportOptions + 1; i++) {
+      options[`opt-${i}`] = { name: `Option ${i}`, styles: { width: '1px', height: '1px' } }
+    }
+    const state = baseState({
+      viewportParameter: { options },
+      globals: { viewport: 'opt-0' },
+    })
+
+    const compiled = compileGlobals(state)
+
+    const viewportSchema = compiled.schema?.properties.viewport as {
+      properties: { value: { enum: string[] } }
+    }
+    expect(viewportSchema.properties.value.enum).toHaveLength(LIMITS.viewportOptions)
+    expect(compiled.viewport?.options).toHaveLength(LIMITS.viewportOptions)
+  })
+
   it('compiles viewport options: enum contains every option key plus a current value not among the keys', () => {
     const state = baseState({
       viewportParameter: {
         options: {
-          mobile1: { name: 'Small mobile', styles: { width: '320px', height: '568px' }, type: 'mobile' },
-          mobile2: { name: 'Large mobile', styles: { width: '414px', height: '896px' }, type: 'mobile' },
+          mobile1: {
+            name: 'Small mobile',
+            styles: { width: '320px', height: '568px' },
+            type: 'mobile',
+          },
+          mobile2: {
+            name: 'Large mobile',
+            styles: { width: '414px', height: '896px' },
+            type: 'mobile',
+          },
         },
       },
       globals: { viewport: 'responsive' },
@@ -226,7 +322,11 @@ describe('compileGlobals (spec §40 Globals)', () => {
     const state = baseState({
       viewportParameter: {
         options: {
-          mobile1: { name: 'Small mobile', type: 'mobile', styles: { width: '320px', height: '568px' } },
+          mobile1: {
+            name: 'Small mobile',
+            type: 'mobile',
+            styles: { width: '320px', height: '568px' },
+          },
           tablet: { name: 'Tablet', type: 'tablet', styles: { width: '834px', height: '1112px' } },
         },
       },
@@ -273,11 +373,18 @@ describe('compileGlobals (spec §40 Globals)', () => {
     expect(compiled.schema).toEqual({
       type: 'object',
       properties: {
-        theme: { type: 'string', enum: ['light', 'dark', 'side-by-side'], description: 'Theme for the components' },
+        theme: {
+          type: 'string',
+          enum: ['light', 'dark', 'side-by-side'],
+          description: 'Theme for the components',
+        },
         viewport: {
           type: 'object',
           properties: {
-            value: { type: 'string', enum: ['breakpointXS', 'breakpointS', 'breakpointM', 'responsive'] },
+            value: {
+              type: 'string',
+              enum: ['breakpointXS', 'breakpointS', 'breakpointM', 'responsive'],
+            },
             isRotated: { type: 'boolean' },
           },
           required: ['value'],

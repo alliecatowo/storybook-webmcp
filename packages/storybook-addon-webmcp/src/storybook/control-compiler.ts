@@ -17,7 +17,7 @@ import type {
   StorybookState,
 } from '../core/types.js'
 import { LIMITS } from '../core/constants.js'
-import { isJsonPrimitive, truncate } from '../core/json.js'
+import { isJsonPrimitive, isJsonRepresentable, setOwn, truncate } from '../core/json.js'
 import { isConditionallyVisible } from './conditional.js'
 
 /** One compiled control before it is attached to a name and a description. */
@@ -100,7 +100,8 @@ function compileNumber(control: unknown): Compiled {
 }
 
 function compileSingleSelect(options: unknown): Compiled | null {
-  if (!Array.isArray(options) || options.length === 0 || options.length > LIMITS.options) return null
+  if (!Array.isArray(options) || options.length === 0 || options.length > LIMITS.options)
+    return null
   if (!options.every(isJsonPrimitive)) return null
   const values = options as JsonPrimitive[]
   const type = consistentPrimitiveType(values)
@@ -108,7 +109,8 @@ function compileSingleSelect(options: unknown): Compiled | null {
 }
 
 function compileMultiSelect(options: unknown): Compiled | null {
-  if (!Array.isArray(options) || options.length === 0 || options.length > LIMITS.options) return null
+  if (!Array.isArray(options) || options.length === 0 || options.length > LIMITS.options)
+    return null
   if (!options.every(isJsonPrimitive)) return null
   const values = options as JsonPrimitive[]
   return {
@@ -120,12 +122,17 @@ function compileMultiSelect(options: unknown): Compiled | null {
 
 /** Mapping exposes the option keys Storybook maps through; the mapped values stay server-side. */
 function compileMapping(options: unknown): Compiled | null {
-  if (!Array.isArray(options) || options.length === 0 || options.length > LIMITS.options) return null
+  if (!Array.isArray(options) || options.length === 0 || options.length > LIMITS.options)
+    return null
   if (!options.every((o): o is string => typeof o === 'string')) return null
   return { schema: { type: 'string', enum: options }, kind: 'enum', options }
 }
 
-function compileByControlType(controlType: string | undefined, control: unknown, options: unknown): Compiled | null {
+function compileByControlType(
+  controlType: string | undefined,
+  control: unknown,
+  options: unknown
+): Compiled | null {
   switch (controlType) {
     case 'boolean':
       return { schema: { type: 'boolean' }, kind: 'boolean' }
@@ -181,12 +188,19 @@ function compileSbType(sbType: SbTypeLike | null, depth: number): Compiled | nul
       if (!values.every(isJsonPrimitive)) return null
       const primitives = values as JsonPrimitive[]
       const type = consistentPrimitiveType(primitives)
-      return { schema: { enum: primitives, ...(type ? { type } : {}) }, kind: 'enum', options: primitives }
+      return {
+        schema: { enum: primitives, ...(type ? { type } : {}) },
+        kind: 'enum',
+        options: primitives,
+      }
     }
     case 'array': {
       const child = compileSbType(normalizeSbType(sbType.value), depth + 1)
       if (!child) return null
-      return { schema: { type: 'array', items: child.schema, maxItems: LIMITS.arrayItems }, kind: 'array' }
+      return {
+        schema: { type: 'array', items: child.schema, maxItems: LIMITS.arrayItems },
+        kind: 'array',
+      }
     }
     case 'object': {
       const valueMap = sbType.value
@@ -199,7 +213,7 @@ function compileSbType(sbType: SbTypeLike | null, depth: number): Compiled | nul
         const childSbType = normalizeSbType(valueMap[key])
         const compiledChild = compileSbType(childSbType, depth + 1)
         if (!compiledChild) continue
-        properties[key] = compiledChild.schema
+        setOwn(properties, key, compiledChild.schema)
         if (childSbType?.required === true) required.push(key)
         count += 1
       }
@@ -222,7 +236,8 @@ function compileSbType(sbType: SbTypeLike | null, depth: number): Compiled | nul
     }
     case 'intersection': {
       const members = Array.isArray(sbType.value) ? sbType.value : null
-      if (!members || members.length === 0 || members.length > LIMITS.intersectionMembers) return null
+      if (!members || members.length === 0 || members.length > LIMITS.intersectionMembers)
+        return null
       const allOf: JsonSchema[] = []
       for (const member of members) {
         const compiled = compileSbType(normalizeSbType(member), depth + 1)
@@ -246,6 +261,7 @@ export function compileArgType(
   argType: unknown,
   args: Record<string, unknown>,
   globals: Record<string, unknown>,
+  argName?: string
 ): { schema: JsonSchema; descriptor: Omit<ControlDescriptor, 'name'> } | null {
   if (!isRecord(argType)) return null
 
@@ -259,6 +275,20 @@ export function compileArgType(
   const sbType = normalizeSbType(argType.type)
   if (sbType && (sbType.name === 'function' || sbType.name === 'symbol')) return null
 
+  // Undefined means Storybook has no explicit value yet and is safe to patch.
+  // Any other value must be faithfully representable; never publish a
+  // writable capability for a live function, React element, class instance,
+  // circular graph, or non-finite number.
+  const currentArgName =
+    argName ?? (typeof argType.name === 'string' ? (argType.name as string) : undefined)
+  if (
+    currentArgName !== undefined &&
+    Object.prototype.hasOwnProperty.call(args, currentArgName) &&
+    !isJsonRepresentable(args[currentArgName])
+  ) {
+    return null
+  }
+
   const control = argType.control
   const explicitControlType = getControlType(control)
   if (explicitControlType === 'file') return null
@@ -270,12 +300,20 @@ export function compileArgType(
   } else {
     const effectiveControlType = explicitControlType ?? inferControlTypeFromSbType(sbType)
     compiled =
-      compileByControlType(effectiveControlType, control, argType.options) ?? compileSbType(sbType, 1)
+      compileByControlType(effectiveControlType, control, argType.options) ??
+      compileSbType(sbType, 1)
   }
 
   if (!compiled) return null
 
   const descriptor: Omit<ControlDescriptor, 'name'> = { kind: compiled.kind }
+  const label =
+    typeof argType.label === 'string'
+      ? argType.label
+      : typeof argType.name === 'string'
+        ? argType.name
+        : undefined
+  if (label && label.trim().length > 0) descriptor.label = truncate(label, LIMITS.description)
   if (compiled.options) descriptor.options = compiled.options
   if (compiled.minimum !== undefined) descriptor.minimum = compiled.minimum
   if (compiled.maximum !== undefined) descriptor.maximum = compiled.maximum
@@ -285,7 +323,11 @@ export function compileArgType(
 }
 
 /** The description shown to an agent: the control's own copy, else a generic fallback. */
-function resolveDescription(schema: JsonSchema, argType: Record<string, unknown>, name: string): string {
+function resolveDescription(
+  schema: JsonSchema,
+  argType: Record<string, unknown>,
+  name: string
+): string {
   if (typeof schema.description === 'string') return schema.description
   if (typeof argType.description === 'string' && argType.description.trim().length > 0) {
     return truncate(argType.description, LIMITS.description)
@@ -305,7 +347,7 @@ export function compileControls(state: StorybookState): CompiledControls {
 
   for (const name of Object.keys(state.argTypes).sort()) {
     const argType = state.argTypes[name]
-    const compiled = compileArgType(argType, state.args, state.globals)
+    const compiled = compileArgType(argType, state.args, state.globals, name)
     if (!compiled) {
       skippedCount += 1
       continue
@@ -313,7 +355,15 @@ export function compileControls(state: StorybookState): CompiledControls {
 
     const description = resolveDescription(compiled.schema, isRecord(argType) ? argType : {}, name)
     const schema: JsonSchema = { ...compiled.schema, description }
-    properties[name] = schema
+    // Arg names come from application metadata. Define rather than assign so
+    // a malicious `__proto__` name cannot mutate the compiler's object
+    // prototype while still remaining an explicit JSON-Schema property.
+    Object.defineProperty(properties, name, {
+      value: schema,
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    })
     editable.push({ name, description, ...compiled.descriptor })
   }
 

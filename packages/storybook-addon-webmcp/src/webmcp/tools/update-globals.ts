@@ -11,6 +11,7 @@ import type { Capability, Change } from '../../core/types.js'
 import { TOOL_UPDATE_GLOBALS_PREFIX } from '../../core/constants.js'
 import { abortError, internalError, isAbortError } from '../../core/errors.js'
 import { diff, mutationResult } from '../../core/result.js'
+import { setOwn } from '../../core/json.js'
 import { assertFresh } from '../../storybook/lifecycle.js'
 import type { StorybookAdapter } from '../../storybook/storybook-adapter.js'
 import { validateOrFail } from '../validate.js'
@@ -22,6 +23,31 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+/**
+ * Defensive one-level-deep snapshot of a globals record. The adapter is
+ * documented to hand back detached copies, but this tool must not rely on
+ * that as an implementation detail: if any adapter ever returned a live,
+ * mutable object (or a live nested object such as `viewport`), that same
+ * object could be mutated in place by the very `updateGlobals()` call this
+ * tool triggers. Reading `before` *after* that `await` would then observe
+ * the post-mutation value through the alias, making every before/after
+ * comparison compare a value with itself and silently drop real changes.
+ * Snapshotting immediately after the read — before any mutation can occur —
+ * makes `before` immune to that regardless of what the adapter does.
+ */
+function snapshotGlobals(record: Record<string, unknown>): Record<string, unknown> {
+  const copy: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(record)) {
+    setOwn(copy, key, isPlainRecord(value) ? { ...value } : value)
+  }
+  return copy
+}
+
+/** Keep every before/after field JSON-visible, including an unset global. */
+function toEvidenceValue(value: unknown): unknown {
+  return value === undefined ? null : value
+}
+
 /** Reads the effective `viewport.value` out of a globals record, however it's shaped. */
 function viewportValue(globals: Record<string, unknown>): unknown {
   const viewport = globals[VIEWPORT_KEY]
@@ -31,7 +57,9 @@ function viewportValue(globals: Record<string, unknown>): unknown {
 /** Reads the effective `viewport.isRotated` out of a globals record. */
 function viewportIsRotated(globals: Record<string, unknown>): boolean | undefined {
   const viewport = globals[VIEWPORT_KEY]
-  return isPlainRecord(viewport) && typeof viewport.isRotated === 'boolean' ? viewport.isRotated : undefined
+  return isPlainRecord(viewport) && typeof viewport.isRotated === 'boolean'
+    ? viewport.isRotated
+    : undefined
 }
 
 /**
@@ -40,7 +68,10 @@ function viewportIsRotated(globals: Record<string, unknown>): boolean | undefine
  * story and schema this tool was discovered against, re-checked on every
  * call by `assertFresh` before anything mutates (spec §19).
  */
-export function createUpdateGlobalsTool(adapter: StorybookAdapter, capability: Capability): ToolDescriptor {
+export function createUpdateGlobalsTool(
+  adapter: StorybookAdapter,
+  capability: Capability
+): ToolDescriptor {
   return {
     name: `${TOOL_UPDATE_GLOBALS_PREFIX}.${capability.hash}`,
     title: 'Update Storybook global controls',
@@ -59,7 +90,7 @@ export function createUpdateGlobalsTool(adapter: StorybookAdapter, capability: C
         if (invalid) return invalid
 
         const requested = input as Record<string, unknown>
-        const before = adapter.getGlobals()
+        const before = snapshotGlobals(adapter.getGlobals())
 
         // PATCH semantics: only the properties the agent actually asked for.
         const patch: Record<string, unknown> = {}
@@ -67,13 +98,14 @@ export function createUpdateGlobalsTool(adapter: StorybookAdapter, capability: C
           if (key === VIEWPORT_KEY) {
             const viewportInput = requested[VIEWPORT_KEY]
             const value = isPlainRecord(viewportInput) ? viewportInput.value : undefined
-            const isRotated = isPlainRecord(viewportInput) && typeof viewportInput.isRotated === 'boolean'
-              ? viewportInput.isRotated
-              // Omitted orientation: preserve the human's current rotation.
-              : (viewportIsRotated(before) ?? false)
-            patch[VIEWPORT_KEY] = { value, isRotated }
+            const isRotated =
+              isPlainRecord(viewportInput) && typeof viewportInput.isRotated === 'boolean'
+                ? viewportInput.isRotated
+                : // Omitted orientation: preserve the human's current rotation.
+                  (viewportIsRotated(before) ?? false)
+            setOwn(patch, VIEWPORT_KEY, { value, isRotated })
           } else {
-            patch[key] = requested[key]
+            setOwn(patch, key, requested[key])
           }
         }
 
@@ -90,14 +122,26 @@ export function createUpdateGlobalsTool(adapter: StorybookAdapter, capability: C
             const afterValue = viewportValue(after)
             if (afterValue !== requestedPatch.value) verified = false
             if (beforeValue !== afterValue) {
-              changes.push(diff('globals.viewport.value', beforeValue, afterValue))
+              changes.push(
+                diff(
+                  'globals.viewport.value',
+                  toEvidenceValue(beforeValue),
+                  toEvidenceValue(afterValue)
+                )
+              )
             }
 
             const beforeRotated = viewportIsRotated(before)
             const afterRotated = viewportIsRotated(after)
             if (afterRotated !== requestedPatch.isRotated) verified = false
             if (beforeRotated !== afterRotated) {
-              changes.push(diff('globals.viewport.isRotated', beforeRotated, afterRotated))
+              changes.push(
+                diff(
+                  'globals.viewport.isRotated',
+                  toEvidenceValue(beforeRotated),
+                  toEvidenceValue(afterRotated)
+                )
+              )
             }
           } else {
             const requestedValue = patch[key]
@@ -105,7 +149,9 @@ export function createUpdateGlobalsTool(adapter: StorybookAdapter, capability: C
             const afterValue = after[key]
             if (afterValue !== requestedValue) verified = false
             if (beforeValue !== afterValue) {
-              changes.push(diff(`globals.${key}`, beforeValue, afterValue))
+              changes.push(
+                diff(`globals.${key}`, toEvidenceValue(beforeValue), toEvidenceValue(afterValue))
+              )
             }
           }
         }
