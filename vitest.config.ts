@@ -1,12 +1,16 @@
 import { mergeConfig, defineConfig } from 'vitest/config'
 import { playwright } from '@vitest/browser-playwright'
 import { storybookTest } from '@storybook/addon-vitest/vitest-plugin'
-import viteConfig from './vite.config'
+import viteConfig from './examples/mealdrop/vite.config'
 
 export default mergeConfig(
   viteConfig,
 
   defineConfig({
+    // Vitest runs both the vendored demo tests and the addon workspace tests
+    // from the monorepo root; the demo Vite config's build root is only for
+    // the standalone application build.
+    root: '.',
     test: {
       projects: [
         {
@@ -20,9 +24,12 @@ export default mergeConfig(
           extends: true,
           plugins: [
             // See options at: https://storybook.js.org/docs/writing-tests/vitest-plugin#storybooktest
-            storybookTest({ configDir: '.storybook', storybookScript: 'yarn storybook --ci' }),
+            storybookTest({
+              configDir: 'examples/mealdrop/.storybook',
+              storybookScript: 'yarn storybook --ci',
+            }),
           ],
-          publicDir: 'public',
+          publicDir: 'examples/mealdrop/public',
           test: {
             name: 'storybook',
             browser: {
@@ -35,15 +42,15 @@ export default mergeConfig(
         },
       ],
       coverage: {
-        include: ['./src/**/*.{ts,tsx}'],
+        include: ['./examples/mealdrop/src/**/*.{ts,tsx}'],
         exclude: [
           '**/*.stories.*',
-          'src/docs/**',
-          'src/components/Button/utils.tsx',
+          'examples/mealdrop/src/docs/**',
+          'examples/mealdrop/src/components/Button/utils.tsx',
           '**/conditional-logic.ts',
           '**/RestaurantCard/progress',
           '**/RestaurantsSection.container.tsx',
-          'src/stub',
+          'examples/mealdrop/src/stub',
         ],
       },
     },

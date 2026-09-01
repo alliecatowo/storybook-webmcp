@@ -30,7 +30,7 @@ export const AnimatedIllustration = ({ animation }: AnimatedIllustrationProps) =
   }, [animation]) // Make sure to add animation as a dependency
 
   return (
-    <span className="chromatic-ignore">
+    <span>
       <Lottie style={{ minHeight: 450, maxWidth: 450 }} play loop animationData={animationData} />
     </span>
   )

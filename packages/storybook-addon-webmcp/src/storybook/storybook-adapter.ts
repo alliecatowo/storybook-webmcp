@@ -76,6 +76,17 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+function sameValue(a: unknown, b: unknown): boolean {
+  return Object.is(a, b) || JSON.stringify(a) === JSON.stringify(b)
+}
+
+function sameGlobalValue(key: string, actual: unknown, requested: unknown): boolean {
+  if (key !== 'viewport') return sameValue(actual, requested)
+  const actualValue = isPlainRecord(actual) ? actual.value : actual
+  const requestedValue = isPlainRecord(requested) ? requested.value : requested
+  return sameValue(actualValue, requestedValue)
+}
+
 /**
  * Storybook hands out live references to its own state, and updating a global
  * mutates that same object in place. A caller that snapshots "before", performs
@@ -84,11 +95,24 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
  * detached copy, deep enough to cover nested globals such as viewport.
  */
 function detach(record: Record<string, unknown>): Record<string, unknown> {
-  const copy: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(record)) {
-    setOwn(copy, key, isPlainRecord(value) ? { ...value } : value)
+  const seen = new WeakMap<object, unknown>()
+  const clone = (value: unknown): unknown => {
+    if (!value || typeof value !== 'object') return value
+    if (!Array.isArray(value) && !isPlainRecord(value)) return value
+    const existing = seen.get(value)
+    if (existing) return existing
+    const copy: unknown = Array.isArray(value) ? [] : {}
+    seen.set(value, copy)
+    if (Array.isArray(value)) {
+      for (const item of value) (copy as unknown[]).push(clone(item))
+    } else {
+      for (const [key, item] of Object.entries(value)) {
+        setOwn(copy as Record<string, unknown>, key, clone(item))
+      }
+    }
+    return copy
   }
-  return copy
+  return clone(record) as Record<string, unknown>
 }
 
 /**
@@ -102,8 +126,9 @@ function waitForEvent(
   timeoutMs: number,
   signal: AbortSignal | undefined,
   acceptEvent?: (event: string, args: unknown[]) => boolean
-): Promise<{ fired: boolean }> {
-  return new Promise((resolve, reject) => {
+): Promise<{ fired: boolean; args: unknown[] }> {
+  let cancel!: () => void
+  const promise = new Promise<{ fired: boolean; args: unknown[] }>((resolve, reject) => {
     if (signal?.aborted) {
       reject(abortError())
       return
@@ -130,7 +155,7 @@ function waitForEvent(
       if (acceptEvent && !acceptEvent(event, args)) return
       settled = true
       cleanup()
-      resolve({ fired: true })
+      resolve({ fired: true, args })
     }
 
     const onAbort = () => {
@@ -144,7 +169,14 @@ function waitForEvent(
       if (settled) return
       settled = true
       cleanup()
-      resolve({ fired: false })
+      resolve({ fired: false, args: [] })
+    }
+
+    cancel = () => {
+      if (settled) return
+      settled = true
+      cleanup()
+      resolve({ fired: false, args: [] })
     }
 
     for (const event of events) {
@@ -155,6 +187,9 @@ function waitForEvent(
     signal?.addEventListener('abort', onAbort)
     timer = setTimeout(onTimeout, timeoutMs)
   })
+  ;(promise as Promise<{ fired: boolean; args: unknown[] }> & { cancel?: () => void }).cancel =
+    cancel
+  return promise
 }
 
 /**
@@ -169,7 +204,7 @@ async function waitAndVerify<T>(
   timeoutMs: number,
   signal: AbortSignal | undefined,
   perform: () => void,
-  readResult: () => T,
+  readResult: (eventArgs?: unknown[]) => T,
   isVerified: (result: T) => boolean,
   acceptEvent?: (event: string, args: unknown[]) => boolean
 ): Promise<{ result: T; verified: boolean }> {
@@ -178,9 +213,20 @@ async function waitAndVerify<T>(
   }
 
   const waiter = waitForEvent(api, events, timeoutMs, signal, acceptEvent)
-  perform()
-  const { fired } = await waiter
-  const result = readResult()
+  try {
+    perform()
+  } catch (error) {
+    ;(waiter as Promise<unknown> & { cancel?: () => void }).cancel?.()
+    throw error
+  }
+  const { fired, args: eventArgs } = await waiter
+  // Storybook's GLOBALS_UPDATED channel handler updates its universal store
+  // after the event is dispatched. Yield the current microtask queue before
+  // the authoritative read so a listener registered by the addon cannot
+  // observe the pre-update store snapshot. This is still the single
+  // event-driven verification read, not polling or a second state mirror.
+  if (fired) await Promise.resolve()
+  const result = readResult(eventArgs)
   const verified = fired || isVerified(result)
   return { result, verified }
 }
@@ -364,7 +410,29 @@ export function createStorybookAdapter(api: API): StorybookAdapter {
       TIMEOUTS.globalsUpdate,
       signal,
       () => api.updateGlobals(patch),
-      () => getGlobals(),
+      (eventArgs) => {
+        const globals = getGlobals()
+        // Storybook may dispatch GLOBALS_UPDATED before its getter reflects
+        // the committed snapshot. Preserve the final getter read, but use
+        // the event payload only when it clearly contains the requested
+        // effective values.
+        const eventPayload = eventArgs?.[0]
+        const eventGlobals =
+          isPlainRecord(eventPayload) && isPlainRecord(eventPayload.globals)
+            ? eventPayload.globals
+            : isPlainRecord(eventPayload)
+              ? eventPayload
+              : undefined
+        if (
+          eventGlobals &&
+          Object.entries(patch).every(([key, value]) =>
+            sameGlobalValue(key, eventGlobals[key], value)
+          )
+        ) {
+          return detach(eventGlobals)
+        }
+        return globals
+      },
       (globals) => Object.entries(patch).every(([key, value]) => globals[key] === value)
     )
 

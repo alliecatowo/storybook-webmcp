@@ -71,7 +71,18 @@
       "detail": {
         "humanRatingBefore": 4.3,
         "ratingAfterGlobalsUpdate": 4.3,
-        "changes": [],
+        "changes": [
+          {
+            "path": "globals.theme",
+            "before": "light",
+            "after": "dark"
+          },
+          {
+            "path": "globals.viewport.value",
+            "before": null,
+            "after": "iphone5"
+          }
+        ],
         "themeEnum": ["light", "dark", "side-by-side"],
         "chosenViewport": "iphone5"
       }
@@ -204,7 +215,7 @@
       "detail": {
         "toolName": "storybook_update_controls.48dd2eb3",
         "unchanged": true,
-        "toolChangeEventsDuringValueChange": 0
+        "toolChangeEventsDuringValueChange": 6
       }
     },
     {

@@ -1,14 +1,15 @@
 # MealDrop demo boundary
 
-MealDrop is the real-world Storybook demonstration environment for this
-challenge. It is not the product or part of the published addon API.
-
-The demo's application source and Storybook configuration remain at the
-repository root because the upstream MealDrop build, Vite paths, and Storybook
-stories depend on that layout. The product is isolated in
-[`packages/storybook-addon-webmcp`](../../packages/storybook-addon-webmcp/): it
-contains no imports, story IDs, theme names, or component knowledge from
+MealDrop is a vendored, demo-only Storybook host for this challenge. It is not
+the product and is not part of the published addon API. The generic product is
+isolated in [`packages/storybook-addon-webmcp`](../../packages/storybook-addon-webmcp/):
+it contains no imports, story IDs, theme names, or component knowledge from
 MealDrop and can be consumed independently as `storybook-addon-webmcp`.
+
+This directory contains the upstream app source, stories, static assets, and
+Storybook configuration solely to provide a realistic host for the addon. The
+repository root intentionally contains only monorepo tooling and the addon
+package; the demo's build scripts point here explicitly.
 
 Run the demonstration from the repository root:
 

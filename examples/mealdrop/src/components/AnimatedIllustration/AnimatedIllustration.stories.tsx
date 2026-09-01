@@ -8,7 +8,6 @@ const meta = {
   parameters: {
     layout: 'fullscreen',
     storyshots: { disable: true },
-    chromatic: { delay: 1000 },
   },
   decorators: [
     (StoryEl) => (

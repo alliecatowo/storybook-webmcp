@@ -16,6 +16,8 @@ const POLYFILL = readFileSync(join(HERE, 'webmcp-polyfill.js'), 'utf8')
 const BASE = process.env.STORYBOOK_URL ?? 'http://127.0.0.1:6006'
 const RESULTS_PATH = process.env.EVAL_RESULTS_PATH ?? join(HERE, 'results.json')
 const VIDEO_DIR = process.env.EVAL_VIDEO_DIR
+const RECORDING = Boolean(VIDEO_DIR)
+const PANEL_QUERY = RECORDING ? '&panel=storybook%2Fwebmcp%2Fpanel' : ''
 
 const REVIEW = 'components-review--default'
 const ICON = 'components-icon--playground'
@@ -36,8 +38,12 @@ const page = await (async () => {
   const browserPage = await context.newPage()
   browserPage.on('pageerror', (e) => console.error('PAGE ERROR', e.message))
   globalThis.__browser = browser
+  globalThis.__recordingContext = context
   return browserPage
 })()
+
+/** Keep the optional recording legible without slowing the normal assertions. */
+const visualPause = (ms = 700) => (RECORDING ? page.waitForTimeout(ms) : Promise.resolve())
 
 /** Storybook registers tools only once the manager has booted and a story is prepared. */
 const waitForDynamicTools = () =>
@@ -50,6 +56,14 @@ const waitForDynamicTools = () =>
     { timeout: 30_000 }
   )
 
+const openWebMCPPanel = async () => {
+  const tab = page.locator('[role="tab"][data-key="storybook/webmcp/panel"]')
+  if (await tab.count()) {
+    await tab.click({ force: true })
+    await page.waitForTimeout(RECORDING ? 700 : 250)
+  }
+}
+
 /**
  * Client-side navigation, the way a human clicking the sidebar navigates: the
  * Manager stays loaded and the page is never reloaded. A full page load would
@@ -57,10 +71,13 @@ const waitForDynamicTools = () =>
  * observed, which is exactly the state the stale-context eval needs to exercise.
  */
 const navigateInApp = async (storyId) => {
-  await page.evaluate((id) => {
-    window.history.pushState({}, '', `?path=/story/${id}`)
-    window.dispatchEvent(new PopStateEvent('popstate'))
-  }, storyId)
+  await page.evaluate(
+    ([id, panelQuery]) => {
+      window.history.pushState({}, '', `?path=/story/${id}${panelQuery}`)
+      window.dispatchEvent(new PopStateEvent('popstate'))
+    },
+    [storyId, PANEL_QUERY]
+  )
   await page.waitForFunction(
     (id) =>
       document.modelContext
@@ -70,13 +87,17 @@ const navigateInApp = async (storyId) => {
     storyId,
     { timeout: 30_000 }
   )
-  await page.waitForTimeout(800)
+  await openWebMCPPanel()
+  await page.waitForTimeout(RECORDING ? 1200 : 800)
 }
 
 const gotoStory = async (storyId) => {
-  await page.goto(`${BASE}/?path=/story/${storyId}`, { waitUntil: 'domcontentloaded' })
+  await page.goto(`${BASE}/?path=/story/${storyId}${PANEL_QUERY}`, {
+    waitUntil: 'domcontentloaded',
+  })
   await waitForDynamicTools()
-  await page.waitForTimeout(500)
+  await openWebMCPPanel()
+  await page.waitForTimeout(RECORDING ? 1400 : 500)
 }
 
 const tools = () => page.evaluate(() => document.modelContext.getTools())
@@ -93,6 +114,7 @@ await gotoStory(REVIEW)
 {
   const ctx = await call('storybook_get_context')
   const rating = ctx?.controls?.editable?.find((c) => c.name === 'rating')
+  await visualPause()
   record('eval-1-context', ctx?.ok && ctx.story?.id === REVIEW && rating ? 'pass' : 'fail', {
     story: ctx?.story,
     rating,
@@ -105,6 +127,7 @@ await gotoStory(REVIEW)
   const tool = await named('storybook_update_controls.')
   const schema = tool?.inputSchema?.properties?.rating
   const res = await call(tool.name, { rating: 1 })
+  await visualPause(900)
   record('eval-2-update-controls', res?.ok && res.verified ? 'pass' : 'fail', {
     tool: tool?.name,
     schema,
@@ -117,6 +140,7 @@ await gotoStory(REVIEW)
   const tool = await named('storybook_update_controls.')
   const res = await call(tool.name, { rating: 9 })
   const ctx = await call('storybook_get_context')
+  await visualPause(600)
   record(
     'eval-3-invalid-bound',
     res?.ok === false && res.error.code === 'INVALID_VALUE' && ctx.controls.values.rating !== 9
@@ -146,6 +170,7 @@ await gotoStory(REVIEW)
 
   const res = await call(globalsTool.name, { theme: dark, viewport: { value: mobile } })
   const after = await call('storybook_get_context')
+  await visualPause(1100)
 
   record('eval-4-shared-state', res?.ok && after.controls.values.rating === 4.3 ? 'pass' : 'fail', {
     humanRatingBefore: before?.controls?.values?.rating,
@@ -171,6 +196,7 @@ await gotoStory(REVIEW)
   const nameEnum = iconControls?.inputSchema?.properties?.name?.enum
   const res = await call(iconControls.name, { name: 'star' })
   const ctx = await call('storybook_get_context')
+  await visualPause(1000)
 
   record(
     'eval-5-dynamic-capability',
@@ -215,6 +241,7 @@ await gotoStory(REVIEW)
   const resetTool = await named('storybook_reset_controls.')
   const reset = await call(resetTool.name, {})
   const ctxReset = await call('storybook_get_context')
+  await visualPause(900)
   record('eval-8-reset', reset?.ok && ctxReset.controls.values.name !== 'star' ? 'pass' : 'fail', {
     tool: resetTool?.name,
     result: reset,
@@ -231,7 +258,7 @@ await gotoStory(REVIEW)
   const target =
     found?.matches?.find((match) => match.id.startsWith('userflows-app--')) ?? found?.matches?.[0]
   const opened = target ? await call('storybook_open_story', { storyId: target.id }) : null
-  await page.waitForTimeout(1500)
+  await page.waitForTimeout(RECORDING ? 1800 : 1500)
   const ctx = await call('storybook_get_context')
   record(
     'eval-7-navigation',
@@ -276,6 +303,7 @@ await gotoStory(REVIEW)
   )
 }
 
+await globalThis.__recordingContext?.close()
 await globalThis.__browser.close()
 
 const summary = {

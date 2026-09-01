@@ -9,26 +9,16 @@ implements each piece. Section numbers (`§N`) refer to `docs/SPEC.md`.
 
 ## The pipeline
 
-```
-                    Storybook metadata
-      (current story, args, argTypes, globals, globalTypes)
-                            │
-                            ▼
-                  safe semantic compiler
-   (storybook/control-compiler.ts, storybook/global-compiler.ts)
-                            │
-                ┌───────────┴───────────┐
-                ▼                       ▼
-         control schema           global schema
-                │                       │
-                └───────────┬───────────┘
-                            ▼
-          versioned contextual capabilities
-        (storybook/lifecycle.ts + core/hash.ts)
-                            │
-                            ▼
-                          WebMCP
-      (document.modelContext, via webmcp/registry.ts)
+```mermaid
+flowchart TB
+  Metadata[Storybook metadata\ncurrent story, args, ArgTypes, globals, globalTypes]
+  Metadata --> Compiler[Safe semantic compiler\ncontrol-compiler + global-compiler]
+  Compiler --> Controls[Controls JSON Schema]
+  Compiler --> Globals[Globals JSON Schema]
+  Controls --> Fingerprint[Canonical capability fingerprint\nstory id + schema]
+  Globals --> Fingerprint
+  Fingerprint --> Dynamic[Versioned contextual capabilities\nlifecycle + hash]
+  Dynamic --> Runtime[document.modelContext\nWebMCP registry]
 ```
 
 Storybook metadata is never handed to an agent as-is. It first passes through
@@ -237,9 +227,9 @@ characters (`HASH_LENGTH` in `core/constants.ts`). The hash becomes the
 machine-readable suffix of the tool name:
 
 ```
-storybook_update_controls.a81f03c2
-storybook_reset_controls.a81f03c2
-storybook_update_globals.11e8409a
+storybook_update_controls.48dd2eb3
+storybook_reset_controls.48dd2eb3
+storybook_update_globals.8b9a1f19
 ```
 
 The hash depends only on the story id and the compiled schema shape — never
@@ -250,7 +240,7 @@ different story, or a conditional control appearing/disappearing.
 Tool names are versioned rather than reused under a stable machine name
 because a browser agent may have already read and cached an older tool
 definition (its `inputSchema`) before the story or its args changed. If the
-addon replaced `storybook_update_controls.a81f03c2`'s definition in place, a
+addon replaced a hash-suffixed controls definition in place, a
 stale agent could submit a value shaped for the old schema against a tool
 that now means something else. Versioning the name makes that impossible: an
 agent holding a stale name either calls a tool that no longer exists (fails

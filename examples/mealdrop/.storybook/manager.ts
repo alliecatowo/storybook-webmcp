@@ -1,6 +1,5 @@
 import { addons } from 'storybook/manager-api'
 import { create } from 'storybook/theming/create'
-import logo from '../src/assets/images/logo-black.svg'
 
 const theme = create({
   base: 'light',
@@ -34,10 +33,9 @@ const theme = create({
   // inputTextColor: '#333333',
   // inputBorderRadius: 4,
 
-  // Brand assets
-  brandTitle: 'Mealdrop',
-  brandUrl: 'https://github.com/yannbf/mealdrop/',
-  brandImage: logo,
+  // The Storybook host is a demo, but the judged product is the addon.
+  brandTitle: 'Storybook WebMCP',
+  brandUrl: 'https://github.com/alliecatowo/storybook-webmcp',
 })
 
 addons.setConfig({

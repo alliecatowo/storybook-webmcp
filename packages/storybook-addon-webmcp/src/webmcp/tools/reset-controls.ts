@@ -7,7 +7,7 @@
 import type { StorybookAdapter } from '../../storybook/storybook-adapter.js'
 import { assertFresh } from '../../storybook/lifecycle.js'
 import { validateOrFail } from '../validate.js'
-import { abortError, internalError, isAbortError } from '../../core/errors.js'
+import { abortError, internalError, isAbortError, updateTimeout } from '../../core/errors.js'
 import { changesFor, mutationResult } from '../../core/result.js'
 import { LIMITS, TOOL_RESET_CONTROLS_PREFIX } from '../../core/constants.js'
 import type { Capability, ObjectSchema } from '../../core/types.js'
@@ -100,7 +100,8 @@ export function createResetControlsTool(
 
         const changes = changesFor('args', beforeSnapshot, afterSnapshot, names, before, confirmed)
 
-        return mutationResult('reset_controls', capability.storyId, changes, verified)
+        if (!verified) return updateTimeout()
+        return mutationResult('reset_controls', capability.storyId, changes, true)
       } catch (error) {
         if (isAbortError(error)) throw error
         return internalError(error)
