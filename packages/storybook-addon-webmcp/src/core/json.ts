@@ -13,9 +13,14 @@ export function isJsonPrimitive(v: unknown): v is JsonPrimitive {
   return v === null || typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean'
 }
 
-/** Defensive check for React elements: they carry a `$$typeof` symbol tag. */
+/** Defensive check for React elements: they carry a `$$typeof` property valued with the react.element symbol tag. */
 function isReactElement(v: unknown): boolean {
-  return typeof v === 'object' && v !== null && Symbol.for('react.element') in v
+  return (
+    typeof v === 'object' &&
+    v !== null &&
+    '$$typeof' in v &&
+    (v as { $$typeof?: unknown }).$$typeof === Symbol.for('react.element')
+  )
 }
 
 /** Appends '…' only when truncation actually removed characters. */

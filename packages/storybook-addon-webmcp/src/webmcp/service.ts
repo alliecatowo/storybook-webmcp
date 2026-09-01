@@ -95,8 +95,18 @@ export function startWebMCPService(api: API): WebMCPService {
   const listeners = new Set<(state: PanelState) => void>()
   let stopped = false
 
+  /** Memoised panel snapshot; cleared by notify() whenever state genuinely changes. */
+  let cachedState: PanelState | null = null
+
+  /**
+   * The panel reads this through `useSyncExternalStore`, which compares
+   * snapshots by identity. Rebuilding the object on every read would report a
+   * change on every render and spin React forever, so the snapshot is cached
+   * and only rebuilt after something actually changed.
+   */
   function currentState(): PanelState {
-    return {
+    if (cachedState) return cachedState
+    cachedState = {
       supported: registry.supported,
       active: registry.supported && !stopped,
       story: adapter.getCurrentStory(),
@@ -113,9 +123,11 @@ export function startWebMCPService(api: API): WebMCPService {
       lastToolChangeAt,
       recentCalls: [...recentCalls],
     }
+    return cachedState
   }
 
   function notify(): void {
+    cachedState = null
     const state = currentState()
     for (const listener of listeners) listener(state)
   }

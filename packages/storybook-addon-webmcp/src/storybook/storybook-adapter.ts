@@ -48,6 +48,21 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
+ * Storybook hands out live references to its own state, and updating a global
+ * mutates that same object in place. A caller that snapshots "before", performs
+ * an update and then compares against "after" would be comparing an object with
+ * itself and would report no changes at all. Every read therefore returns a
+ * detached copy, deep enough to cover nested globals such as viewport.
+ */
+function detach(record: Record<string, unknown>): Record<string, unknown> {
+  const copy: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(record)) {
+    copy[key] = isPlainRecord(value) ? { ...value } : value
+  }
+  return copy
+}
+
+/**
  * Waits for one of a set of Storybook core events (or a timeout, or abort),
  * then resolves. Never rejects on a missed event by itself — callers decide
  * whether the subsequent authoritative read counts as verified.
@@ -185,7 +200,7 @@ export function createStorybookAdapter(api: API): StorybookAdapter {
   const getArgs = (): Record<string, unknown> => {
     const entry = getEntry()
     const args = (entry as { args?: unknown } | undefined)?.args
-    return isPlainRecord(args) ? args : {}
+    return isPlainRecord(args) ? detach(args) : {}
   }
 
   const getArgTypes = (): Record<string, unknown> => {
@@ -197,7 +212,7 @@ export function createStorybookAdapter(api: API): StorybookAdapter {
   const getGlobals = (): Record<string, unknown> => {
     try {
       const globals = api.getGlobals?.()
-      return isPlainRecord(globals) ? globals : {}
+      return isPlainRecord(globals) ? detach(globals) : {}
     } catch {
       return {}
     }
@@ -206,7 +221,7 @@ export function createStorybookAdapter(api: API): StorybookAdapter {
   const getUserGlobals = (): Record<string, unknown> => {
     try {
       const globals = api.getUserGlobals?.()
-      return isPlainRecord(globals) ? globals : {}
+      return isPlainRecord(globals) ? detach(globals) : {}
     } catch {
       return {}
     }
@@ -215,7 +230,7 @@ export function createStorybookAdapter(api: API): StorybookAdapter {
   const getStoryGlobals = (): Record<string, unknown> => {
     try {
       const globals = api.getStoryGlobals?.()
-      return isPlainRecord(globals) ? globals : {}
+      return isPlainRecord(globals) ? detach(globals) : {}
     } catch {
       return {}
     }

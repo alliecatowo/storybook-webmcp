@@ -51,7 +51,11 @@ function scoreStory(query: string, tokens: string[], id: string, title: string, 
   if (nTitle.startsWith(query)) return 80
   if (nName.startsWith(query)) return 80
   if (nId.startsWith(query)) return 75
-  if (tokens.length > 0 && tokens.every((token) => combined.includes(token))) return 60
+  // A lone token's "every token present" test is identical to a plain
+  // substring test, so this tier is only meaningfully distinct from the
+  // substring tier below for genuinely multi-token queries (spec §6: "every
+  // query token occurs somewhere" ranks above "simple substring").
+  if (tokens.length > 1 && tokens.every((token) => combined.includes(token))) return 60
   if (combined.includes(query)) return 50
   return undefined
 }

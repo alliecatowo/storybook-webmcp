@@ -42,8 +42,7 @@ const gotoStory = async (storyId) => {
     (id) =>
       document.modelContext
         ?.getTools()
-        .some((t) => t.name.startsWith('storybook_update_controls.')) &&
-      window.__STORYBOOK_ADDONS_MANAGER__?.getChannel !== undefined,
+        .some((t) => t.name.startsWith('storybook_update_controls.')),
     storyId,
     { timeout: 30_000 }
   )
@@ -102,7 +101,7 @@ await gotoStory(REVIEW)
   // Stand in for the human dragging the slider: Storybook's own manager channel,
   // which is exactly what the Controls panel uses.
   await page.evaluate((id) => {
-    const api = window.__STORYBOOK_ADDONS_MANAGER__
+    const api = window.__STORYBOOK_ADDONS_MANAGER
     const channel = api.getChannel()
     channel.emit('updateStoryArgs', { storyId: id, updatedArgs: { rating: 4.3 } })
   }, REVIEW)
@@ -134,6 +133,12 @@ await gotoStory(REVIEW)
 // --- Eval 5: dynamic capability -------------------------------------------
 {
   const reviewControls = await named('storybook_update_controls.')
+  // Capture the live capability closure while it is still registered, so the
+  // stale check is exercised after the human navigates away.
+  await page.evaluate((name) => {
+    const descriptor = document.modelContext.__descriptor(name)
+    window.__staleExecute = (input) => descriptor.execute(input, {})
+  }, reviewControls.name)
   const changesBefore = await toolChanges()
   await gotoStory(ICON)
   const iconControls = await named('storybook_update_controls.')
@@ -157,7 +162,18 @@ await gotoStory(REVIEW)
   )
 
   // --- Eval 6: stale protection (diagnostic invocation of the old capability)
-  const stale = await call(reviewControls.name, { rating: 1 })
+  // The registration AbortSignal has already removed the Review tool by now, so
+  // executeTool alone would only prove deregistration. To exercise the
+  // stale-context guard itself we invoke the captured closure directly, exactly
+  // as an agent holding a previously-observed capability would.
+  const stale = await page.evaluate(
+    (name) =>
+      (window.__staleExecute
+        ? window.__staleExecute({ rating: 1 })
+        : Promise.resolve({ missing: name })
+      ).catch((e) => ({ threw: String(e) })),
+    reviewControls.name
+  )
   const ctxAfter = await call('storybook_get_context')
   record(
     'eval-6-stale-context',
