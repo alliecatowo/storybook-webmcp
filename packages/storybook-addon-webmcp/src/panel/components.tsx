@@ -5,6 +5,7 @@
  * Storybook theme the host is running; no bespoke branding.
  */
 
+import * as React from 'react'
 import type { ReactNode } from 'react'
 import { styled } from 'storybook/theming'
 import type { PanelCall } from '../core/types.js'

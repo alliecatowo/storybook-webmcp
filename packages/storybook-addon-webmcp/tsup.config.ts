@@ -13,4 +13,11 @@ export default defineConfig({
   dts: false,
   treeshake: true,
   external: ['react', 'react-dom', 'storybook', /^storybook\//],
+  esbuildOptions(options) {
+    // Storybook's manager globalises 'react' but NOT 'react/jsx-runtime'. With the
+    // automatic runtime, a second React copy gets bundled into this addon and every
+    // element it creates is rejected by the manager's React (invariant 31). Classic
+    // JSX compiles to React.createElement against the globalised copy instead.
+    options.jsx = 'transform'
+  },
 })

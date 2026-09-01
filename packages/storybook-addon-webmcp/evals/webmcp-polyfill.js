@@ -54,6 +54,16 @@
       return tool.execute(input ?? {}, { signal: options?.signal })
     },
 
+    /**
+     * Diagnostic-only escape hatch: hands back the live descriptor, including its
+     * execute closure, so an eval can invoke a capability the human has already
+     * navigated away from. A real WebMCP agent holds such a closure implicitly
+     * once it has observed a tool; this is how the stale-context guard is tested.
+     */
+    __descriptor(name) {
+      return tools.get(name)
+    },
+
     addEventListener(type, listener, options) {
       if (type !== 'toolchange') return
       listeners.add(listener)
