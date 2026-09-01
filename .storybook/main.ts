@@ -14,7 +14,7 @@ const config: StorybookConfig = {
     'storybook-addon-test-codegen',
     '@storybook/addon-designs',
     '@storybook/addon-docs',
-    '@storybook/addon-mcp',
+    'storybook-addon-webmcp',
     'msw-storybook-addon',
   ],
   typescript: {

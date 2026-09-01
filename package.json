@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsc && vite build",
     "build-all": "yarn build && yarn build-storybook",
-    "build-storybook": "storybook build --output-dir build/storybook",
+    "build-storybook": "yarn build:addon && storybook build --output-dir build/storybook",
     "build-storybook:test": "storybook build --output-dir build/storybook --test",
     "chromatic": "chromatic --project-token $CHROMATIC_PROJECT_TOKEN --exit-zero-on-changes --only-changed",
     "lint": "oxlint --fix . && oxfmt .",
@@ -15,8 +15,8 @@
     "prepare": "husky",
     "serve": "vite preview",
     "start": "vite",
-    "check": "tsc --noEmit",
-    "storybook": "storybook dev -p 6006",
+    "check": "tsc --noEmit && yarn workspace storybook-addon-webmcp check",
+    "storybook": "yarn build:addon && storybook dev -p 6006",
     "test": "vitest",
     "test-storybook": "test-storybook",
     "test-storybook:ci": "concurrently --kill-others --success first --names \"SB,TEST\" --prefix-colors \"magenta,blue\" \"yarn build-storybook:test && npx serve build/storybook --listen 6006 --no-request-logging\" \"wait-on tcp:6006 && yarn test-storybook\"",
@@ -24,7 +24,8 @@
     "test-storybook:json:ci": "concurrently --kill-others --success first --names \"SB,TEST\" --prefix-colors \"magenta,blue\" \"yarn build-storybook:test && npx serve build/storybook --listen 6006 --no-request-logging\" \"wait-on tcp:6006 && SKIP_SNAPSHOTS=true yarn test-storybook:json\"",
     "test:ci": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "format": "oxfmt ."
+    "format": "oxfmt .",
+    "build:addon": "yarn workspace storybook-addon-webmcp build"
   },
   "lint-staged": {
     "!(mockServiceWorker).{js,jsx,ts,tsx}": [
@@ -106,6 +107,8 @@
     "playwright": "^1.62.0",
     "storybook": "^10.5.5",
     "storybook-addon-test-codegen": "^3.0.4",
+    "storybook-addon-webmcp": "workspace:*",
+    "tsup": "^8.5.0",
     "vite": "^8.1.5",
     "vitest": "^4.1.10",
     "wait-on": "^9.0.1"
@@ -113,5 +116,8 @@
   "packageManager": "yarn@4.18.0",
   "msw": {
     "workerDirectory": "public"
-  }
+  },
+  "workspaces": [
+    "packages/*"
+  ]
 }
