@@ -40,7 +40,11 @@ export function WebMCPPanel(props: { active: boolean }): React.JSX.Element {
     >
       <div style={{ padding: '12px 16px', fontSize: '13px', color: theme.color.defaultText }}>
         {/* 1. Status */}
-        <div style={{ ...sectionStyle, display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div
+          role="status"
+          aria-live="polite"
+          style={{ ...sectionStyle, display: 'flex', alignItems: 'center', gap: '6px' }}
+        >
           <span style={{ color: state.active ? theme.color.positive : theme.textMutedColor }}>
             {state.active ? '●' : '○'}
           </span>
