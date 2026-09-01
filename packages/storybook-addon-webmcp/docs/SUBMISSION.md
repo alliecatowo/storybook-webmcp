@@ -8,6 +8,21 @@ This is the submission-ready product packet for the OpenAI WebMCP Challenge. The
 
 Storybook WebMCP turns the Storybook a developer already has open into a browser-agent capability surface—without a second renderer, DOM automation, sync service, or MCP server. It compiles the current story's live ArgTypes, args, globals, and viewport metadata into six focused WebMCP tools. An agent can inspect context, search and open stories, patch only the safe controls a story exposes, reset them, or update bounded toolbar globals. Tool schemas are versioned and change when the human's editable surface changes; stale capabilities are rejected. Because both participants read and write Storybook Manager state, a human's slider edit is immediately preserved by an unrelated agent action. One generic addon, any Storybook, the same screen for human and agent.
 
+## Official submission gate
+
+The following requirements are transcribed from the [official OpenAI challenge page](https://openai.com/webmcp-challenge/), [Devpost resources](https://webmcp.devpost.com/resources), and the [official rules](https://webmcp.devpost.com/rules) (checked September 1, 2026).
+
+| Requirement                                                                                                     | Evidence/status                                                                                                                                                                                                   |
+| --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Submission deadline: September 3, 2026 at 1:00 PM PT                                                            | Calendar-critical; submit before this deadline.                                                                                                                                                                   |
+| Working hosted project                                                                                          | Live URL is published below and returns HTTP 200; test in ChatGPT's in-app browser or Chrome with WebMCP enabled.                                                                                                 |
+| Public code repository with open-source license                                                                 | Public GitHub repository and MIT addon license are published below.                                                                                                                                               |
+| Project description explaining WebMCP use                                                                       | Devpost copy and product README are included in this packet.                                                                                                                                                      |
+| Demo video under 3 minutes, with clear functionality and audio explaining what was built and how WebMCP is used | **Remaining action:** the checked-in 23.44-second capture is silent mechanics evidence only; add narration/audio and upload a public or unlisted YouTube video before submitting. No YouTube URL is claimed here. |
+| Native browser verification                                                                                     | **Pending:** validate the live URL in ChatGPT's in-app browser or Chrome with WebMCP enabled; local shim results are not native-agent evidence.                                                                   |
+
+After the submission period closes, the official resources say not to modify the submission, repository, or live site during judging. Treat the published commit and deployment as the submission snapshot.
+
 ## Devpost long description
 
 Storybook is already a shared workbench: a developer opens a story, drags a control, changes a toolbar global, and sees the result in the same Preview. Storybook WebMCP makes that live workbench legible to a browser agent.
