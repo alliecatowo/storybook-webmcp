@@ -36,13 +36,13 @@ The addon under packages/storybook-addon-webmcp/ is the challenge work and conta
 
 The following commands pass in this checkout:
 
-~~~sh
+```sh
 yarn lint:check
 yarn check
 yarn vitest run --project=node
 yarn build:addon
 yarn build-storybook
-~~~
+```
 
 Measured result: 340 tests across 14 files pass. The addon build emits ESM manager/index/preset bundles and declarations. The MealDrop Storybook production build completes and includes one WebMCP manager bundle.
 
@@ -56,14 +56,14 @@ Native Chrome WebMCP/DevTools and a ChatGPT-compatible top-level tool run requir
 
 Build the static demo with yarn build-all. The repository's vercel.json publishes build and serves Storybook at /storybook/:
 
-~~~sh
+```sh
 npx vercel --yes --prod
-~~~
+```
 
 ## Submission links
 
 - Public repository: [github.com/alliecatowo/storybook-webmcp](https://github.com/alliecatowo/storybook-webmcp)
-- Live demo: added here once the authenticated Vercel deployment returns its canonical URL.
+- Live demo: [storybook-web-mcp.vercel.app/storybook](https://storybook-web-mcp.vercel.app/storybook/)
 - Demo script: [DEMO.md](./DEMO.md)
 - Product README: [packages/storybook-addon-webmcp/README.md](../README.md)
 - License: [LICENSE](../LICENSE)
@@ -77,7 +77,7 @@ npx vercel --yes --prod
 - [x] Diagnostic panel independent of panel visibility.
 - [x] Unit, lifecycle, security, and production-build shim verification.
 - [x] Product-first README and explicit MealDrop demo boundary.
+- [x] HTTPS Vercel production deployment; Storybook is served at /storybook/.
 - [ ] Native Chrome WebMCP pane / ChatGPT-compatible agent run (requires the user's WebMCP browser session).
 - [ ] Final screen recording and screenshots (use DEMO.md).
-- [ ] Canonical live-demo URL (run the Vercel command above).
-
+- [x] Canonical live-demo URL published above.
