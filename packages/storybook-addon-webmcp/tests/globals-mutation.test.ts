@@ -301,9 +301,9 @@ describe('storybook_update_globals — precise diff regression (spec §20)', () 
 
     const result = (await tool.execute({ theme: 'dark' })) as any
 
-    expect(result.ok).toBe(true)
-    expect(result.verified).toBe(false)
-    // The value truly never changed, so there is nothing to diff either.
-    expect(result.changes).toEqual([])
+    expect(result.ok).toBe(false)
+    expect(result.error.code).toBe('UPDATE_TIMEOUT')
+    // The value truly never changed, so the operation is reported as a
+    // bounded timeout/error rather than a false successful mutation.
   })
 })

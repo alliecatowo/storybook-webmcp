@@ -1,20 +1,11 @@
 {
-  "buildCommand": "yarn build-all",
+  "installCommand": "npx --yes @yarnpkg/cli-dist@4.18.0 install --immutable",
+  "buildCommand": "npm run build-all",
   "outputDirectory": "build",
   "redirects": [
     {
       "source": "/storybook",
       "destination": "/storybook/"
-    }
-  ],
-  "rewrites": [
-    {
-      "source": "/storybook",
-      "destination": "/storybook"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/"
     }
   ],
   "github": {

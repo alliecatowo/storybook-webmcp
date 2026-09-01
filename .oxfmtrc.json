@@ -16,6 +16,8 @@
     "public",
     "src/assets",
     "src/docs/assets",
+    "examples/mealdrop/src/assets",
+    "examples/mealdrop/src/docs/assets",
     "src/__snapshots__",
     "**/*.mdx"
   ]

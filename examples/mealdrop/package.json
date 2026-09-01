@@ -1,0 +1,6 @@
+{
+  "name": "storybook-webmcp-mealdrop-demo",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Vendored MealDrop Storybook host used only to demonstrate storybook-addon-webmcp."
+}

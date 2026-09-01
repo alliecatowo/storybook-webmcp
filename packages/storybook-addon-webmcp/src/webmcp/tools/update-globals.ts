@@ -9,7 +9,7 @@
 
 import type { Capability, Change } from '../../core/types.js'
 import { LIMITS, TOOL_UPDATE_GLOBALS_PREFIX } from '../../core/constants.js'
-import { abortError, internalError, isAbortError } from '../../core/errors.js'
+import { abortError, internalError, isAbortError, updateTimeout } from '../../core/errors.js'
 import { diff, mutationResult } from '../../core/result.js'
 import { setOwn, toJsonSafe } from '../../core/json.js'
 import { assertFresh } from '../../storybook/lifecycle.js'
@@ -158,7 +158,8 @@ export function createUpdateGlobalsTool(
           }
         }
 
-        return mutationResult('update_globals', capability.storyId, changes, verified)
+        if (!verified) return updateTimeout()
+        return mutationResult('update_globals', capability.storyId, changes, true)
       } catch (error) {
         if (isAbortError(error)) throw error
         return internalError(error)

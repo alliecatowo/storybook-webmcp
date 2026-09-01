@@ -72,11 +72,7 @@
         "humanRatingBefore": 4.3,
         "ratingAfterGlobalsUpdate": 4.3,
         "changes": [],
-        "themeEnum": [
-          "light",
-          "dark",
-          "side-by-side"
-        ],
+        "themeEnum": ["light", "dark", "side-by-side"],
         "chosenViewport": "iphone5"
       }
     },

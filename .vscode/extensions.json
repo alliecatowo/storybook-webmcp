@@ -1,9 +1,0 @@
-{
-  "recommendations": [
-    "oxc.oxc-vscode",
-    "editorconfig.editorconfig",
-    "silvenon.mdx",
-    "styled-components.vscode-styled-components",
-    "vscode-icons-team.vscode-icons"
-  ]
-}

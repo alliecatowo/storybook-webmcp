@@ -2,7 +2,7 @@
 
 **Your agent shouldn't have its own Storybook. It should work in yours.**
 
-This is the submission-ready product packet for the OpenAI WebMCP Challenge. The publishable product is the generic addon in this package. MealDrop is only the real Storybook demonstration host; see [examples/mealdrop/README.md](../../../examples/mealdrop/README.md).
+This is the submission-ready product packet for the OpenAI WebMCP Challenge. The publishable product is the generic addon in this package. MealDrop is only the real Storybook demonstration host, vendored under `examples/mealdrop/` so the repository's product boundary stays explicit.
 
 ## Devpost short description
 
@@ -30,7 +30,7 @@ There is no shadow Storybook state. The addon uses one adapter around the Manage
 
 ## Product boundary
 
-The addon under packages/storybook-addon-webmcp/ is the challenge work and contains no MealDrop source imports, story IDs, icon names, or theme values. The existing MealDrop application and Storybook stories are demo input only. The demo's upstream root layout is retained because its Storybook/Vite paths depend on it; the boundary is documented in examples/mealdrop/README.md. The demo loads this addon and deliberately does not load @storybook/addon-mcp.
+The addon under packages/storybook-addon-webmcp/ is the challenge work and contains no MealDrop source imports, story IDs, icon names, or theme values. The existing MealDrop application and Storybook stories under examples/mealdrop/ are demo input only. The demo loads this addon from examples/mealdrop/.storybook/main.ts and deliberately does not load @storybook/addon-mcp.
 
 ## Verification completed locally
 
@@ -46,7 +46,7 @@ yarn build-storybook
 
 Measured result: 340 tests across 14 files pass. The addon build emits ESM manager/index/preset bundles and declarations. The MealDrop Storybook production build completes and includes one WebMCP manager bundle.
 
-The scripted shim harness runs the built Storybook in headless Chromium through a deliberately local document.modelContext polyfill. Its measured result is recorded in evals/results.json and evals/results.md. This is evidence for registration, schemas, lifecycle, stale protection, validation, and verification mechanics—not a claim that a native browser agent selected tools from natural language.
+The scripted shim harness runs the built Storybook in headless Chromium through a deliberately local document.modelContext polyfill. Its measured result is recorded in evals/results.json. This is evidence for registration, schemas, lifecycle, stale protection, validation, and verification mechanics—not a claim that a native browser agent selected tools from natural language.
 
 ## Native browser validation
 
@@ -77,7 +77,7 @@ npx vercel --yes --prod
 - [x] Diagnostic panel independent of panel visibility.
 - [x] Unit, lifecycle, security, and production-build shim verification.
 - [x] Product-first README and explicit MealDrop demo boundary.
-- [x] HTTPS Vercel production deployment; Storybook is served at /storybook/.
+- [x] HTTPS Vercel production deployment; Storybook is served at `/storybook/`.
 - [ ] Native Chrome WebMCP pane / ChatGPT-compatible agent run (requires the user's WebMCP browser session).
 - [x] Headless HTTPS production-build screen recording artifact (`evals/artifacts/headless-webmcp-demo.webm`).
 - [ ] Native Chrome WebMCP screen recording and screenshots (requires the user's WebMCP browser session; use DEMO.md).

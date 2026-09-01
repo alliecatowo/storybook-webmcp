@@ -17,6 +17,12 @@
     "noEmit": true,
     "jsx": "react-jsx"
   },
-  "include": ["src", ".storybook/*", "functions", "vite.config.ts", "vitest.config.ts"],
+  "include": [
+    "examples/mealdrop/src",
+    "examples/mealdrop/.storybook/*",
+    "examples/mealdrop/functions",
+    "examples/mealdrop/vite.config.ts",
+    "vitest.config.ts"
+  ],
   "exclude": ["public"]
 }

@@ -1,5 +1,9 @@
 # Demo recording guide
 
+Keep the Storybook Manager, Controls panel, WebMCP diagnostic panel, generated schema, and
+verified result visible in every judge-facing shot. MealDrop supplies demo stories only; its
+application UI is not the product demonstration.
+
 Shot-by-shot script for the Storybook WebMCP submission video, reproduced from
 `SPEC.md` §45 ("Demo video — exact story").
 

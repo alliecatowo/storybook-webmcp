@@ -4,7 +4,9 @@
 
 _Same story. Same state. Same screen. Human and agent._
 
-**[Demo GIF/video placeholder — a browser agent editing the Review rating and the Controls panel moving with it]**
+**Judge-facing demo capture:** [DEMO.md](./docs/DEMO.md) contains the exact shot list for
+Storybook Manager, Controls, WebMCP panel, generated schema, and verified results. Native WebMCP
+recording remains pending until a supported browser is available.
 
 ## What it does
 
@@ -34,42 +36,21 @@ Add that entry to `.storybook/main.ts`. No further configuration — the addon h
 
 ## How it works
 
-```
-                HUMAN
-                  │
-          Storybook Controls
-          Sidebar / Toolbars
-                  │
-                  ▼
-        ┌────────────────────┐
-        │ Storybook Manager  │
-        │   authoritative    │
-        │    live state      │
-        └────────────────────┘
-             │          │
-             │          └──── Storybook APIs / channel
-             │                         │
-             │                         ▼
-             │               Preview iframe
-             │                rendered story
-             │
-             ▼
-   storybook-addon-webmcp
-             │
-    capability compiler
-             │
-             ▼
- document.modelContext
-             │
-             ▼
-       BROWSER AGENT
+```mermaid
+flowchart TB
+  Human[Human] --> Controls[Storybook Controls and Toolbars]
+  Controls --> Manager[Storybook Manager\nauthoritative live state]
+  Manager --> Preview[Preview iframe\nrendered story]
+  Manager --> Addon[Storybook WebMCP addon\nsemantic capability compiler]
+  Addon --> WebMCP[document.modelContext]
+  WebMCP --> Agent[Browser agent]
 ```
 
 The WebMCP runtime (`src/webmcp/service.ts`) starts unconditionally from `addons.register` in the Storybook Manager (`src/manager.tsx`) — its lifetime is the Manager's lifetime, not the diagnostic panel's. It never talks to Preview directly; it reads the same Manager API surface (`storybook/manager-api`) that Controls, the toolbar, and the sidebar already use. All direct Storybook interaction is confined to one adapter module, `src/storybook/storybook-adapter.ts`.
 
 ## Storybook → WebMCP compiler
 
-The compiler (`src/storybook/control-compiler.ts`, `src/storybook/global-compiler.ts`) turns live ArgTypes and globalTypes into JSON Schema. These are the actual schemas it produces for MealDrop's real stories, computed by running the compiler against their real ArgTypes/globalTypes (`src/components/Review/Review.stories.tsx`, `src/components/Icon/Icon.stories.tsx`, `.storybook/preview.tsx`).
+The compiler (`src/storybook/control-compiler.ts`, `src/storybook/global-compiler.ts`) turns live ArgTypes and globalTypes into JSON Schema. These are the actual schemas it produces for the vendored demo's real stories, computed by running the compiler against the host metadata in [`examples/mealdrop/src/components/Review/Review.stories.tsx`](../../examples/mealdrop/src/components/Review/Review.stories.tsx), [`examples/mealdrop/src/components/Icon/Icon.stories.tsx`](../../examples/mealdrop/src/components/Icon/Icon.stories.tsx), and [`examples/mealdrop/.storybook/preview.tsx`](../../examples/mealdrop/.storybook/preview.tsx).
 
 `Components/Review/Default` — controls schema (tool `storybook_update_controls.48dd2eb3`):
 
@@ -90,7 +71,7 @@ The compiler (`src/storybook/control-compiler.ts`, `src/storybook/global-compile
 }
 ```
 
-`Components/Icon/Playground` — controls schema (tool `storybook_update_controls.3921a3d8`):
+`Components/Icon/Playground` — controls schema (tool `storybook_update_controls.d2d679b5`):
 
 ```json
 {
@@ -121,7 +102,7 @@ The compiler (`src/storybook/control-compiler.ts`, `src/storybook/global-compile
 }
 ```
 
-Review's globals schema (tool `storybook_update_globals.9e30720d`), from MealDrop's real `theme` globalType and its full configured `viewport.options` (five design-token breakpoints, Storybook's 32 built-in devices, plus the current `responsive` value, 38 enum values total):
+Review's globals schema (tool `storybook_update_globals.8b9a1f19`), from MealDrop's real `theme` globalType and its full configured `viewport.options` (five design-token breakpoints, Storybook's 32 built-in devices, plus the current `responsive` value, 38 enum values total):
 
 ```json
 {
@@ -211,9 +192,9 @@ yarn vitest run --project=node packages/storybook-addon-webmcp/tests
 
 ## Hackathon work
 
-MealDrop — the app, its components, its existing Storybook stories, its Redux store, its routing — is Yann Braga's pre-existing demo application, forked as-is to serve as a real Storybook to demonstrate against. It was not written for this challenge.
+MealDrop — the app, its components, its existing Storybook stories, its Redux store, its routing — is Yann Braga's pre-existing demo application, vendored under `examples/mealdrop/` solely as a real Storybook host. It was not written for this challenge.
 
-Everything under `packages/storybook-addon-webmcp/` was written for this challenge: the addon shell, the Storybook adapter, the ArgType/global compilers, capability hashing and versioning, the WebMCP registry and dynamic-registration lifecycle, all six tools, the diagnostic panel, and the test suite. The addon package itself contains zero imports from MealDrop source and hardcodes no MealDrop story IDs, theme names, or icon names — it works because MealDrop _is_ a Storybook, not because it knows anything about MealDrop specifically. The only MealDrop-side change was disabling the pre-existing `@storybook/addon-mcp` entry in `.storybook/main.ts` and adding `storybook-addon-webmcp` in its place, so no traditional MCP server starts alongside the WebMCP demo.
+Everything under `packages/storybook-addon-webmcp/` was written for this challenge: the addon shell, the Storybook adapter, the ArgType/global compilers, capability hashing and versioning, the WebMCP registry and dynamic-registration lifecycle, all six tools, the diagnostic panel, and the test suite. The addon package itself contains zero imports from MealDrop source and hardcodes no MealDrop story IDs, theme names, or icon names — it works because MealDrop _is_ a Storybook, not because it knows anything about MealDrop specifically. The only MealDrop-side change was disabling the pre-existing `@storybook/addon-mcp` entry in `examples/mealdrop/.storybook/main.ts` and adding `storybook-addon-webmcp` in its place, so no traditional MCP server starts alongside the WebMCP demo.
 
 Storybook also supports traditional MCP integrations for coding-agent workflows; Storybook WebMCP is intentionally a separate live-browser integration and does not depend on an MCP server.
 

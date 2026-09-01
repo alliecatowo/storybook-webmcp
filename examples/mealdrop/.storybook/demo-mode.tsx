@@ -1,5 +1,4 @@
 /* eslint-disable unicorn/prefer-ternary */
-import isChromatic from 'chromatic/isChromatic'
 import { userEvent } from 'storybook/test'
 import { Loader } from '@storybook/react-vite'
 
@@ -112,7 +111,6 @@ export const demoModeLoader: Loader = async (context) => {
     import.meta.env.STORYBOOK &&
     !('test' in globalThis) &&
     !isTestRunner &&
-    !isChromatic() &&
     !('__vitest_browser__' in globalThis)
   if (
     (shouldUseDemoMode && context.args.demoMode) ||

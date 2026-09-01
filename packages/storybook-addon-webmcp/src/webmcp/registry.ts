@@ -102,7 +102,7 @@ export function createRegistry(hooks: RegistryHooks = {}): Registry {
     const entries: PanelToolEntry[] = []
     for (const tool of tools) {
       try {
-        modelContext.registerTool(
+        const registration = modelContext.registerTool(
           {
             name: tool.name,
             title: tool.title,
@@ -113,6 +113,13 @@ export function createRegistry(hooks: RegistryHooks = {}): Registry {
           },
           { signal }
         )
+        // Current WebMCP implementations may return a Promise<void>. The
+        // registry API intentionally stays synchronous so lifecycle callers
+        // can atomically replace a capability set; consume asynchronous
+        // rejection here to prevent an unhandled promise from escaping.
+        if (registration && typeof (registration as { then?: unknown }).then === 'function') {
+          void (registration as Promise<unknown>).catch(() => undefined)
+        }
         entries.push({ name: tool.name, title: tool.title })
       } catch {
         // Skip this tool only; other registrations must still proceed.
