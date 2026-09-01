@@ -1,5 +1,5 @@
 {
-  "target": "http://127.0.0.1:6006",
+  "target": "https://storybook-web-mcp.vercel.app/storybook",
   "harness": "headless Chromium with the local document.modelContext polyfill",
   "passed": 10,
   "failed": 0,

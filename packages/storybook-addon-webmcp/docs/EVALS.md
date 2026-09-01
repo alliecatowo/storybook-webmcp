@@ -11,12 +11,14 @@ no DOM scraping, and no sync layer.
 - **Case definitions:** `evals/cases.md` — the eight scenarios from `docs/SPEC.md` §42, verbatim,
   plus two extra harness checks. Each case states its setup, the exact human prompt, the expected
   tool and input, and the precise success criterion.
-- **Results:** `evals/results.json` (with interpretation in this document) — three tiers, reported separately and never conflated:
+- **Results:** `evals/results.json` and the hosted capture `evals/results-hosted.json` (with interpretation in this document) — three tiers, reported separately and never conflated:
   1. the unit/integration suite (`yarn vitest run --project=node`) — run, passing (14 files,
      340 tests);
   2. the ten cases run against a real, served Storybook **production build** in real headless
      Chromium via Playwright, through the local `document.modelContext` shim
      (`evals/run-evals.mjs` / `evals/webmcp-polyfill.js`) — run, results recorded (10/10 pass);
+     the same suite was repeated against the deployed Vercel Storybook and is recorded separately
+     in `results-hosted.json`; its Playwright recording is `evals/artifacts/headless-webmcp-demo.webm`;
   3. the same cases against a real WebMCP browser agent (Chrome's native WebMCP surface, or a
      ChatGPT/Claude site-tools environment) — **not run**, pending hardware/browser access.
 
@@ -60,7 +62,7 @@ See `evals/results.json` and this document for the exact commands. In short:
    - open the served Storybook in a browser with real WebMCP support and walk through
      `evals/cases.md` by hand, using that browser's WebMCP DevTools pane as the source of truth
      (real-browser harness — see `docs/SPEC.md` §43/§44).
-3. Update `evals/results.json` (and the interpretation above) with what was actually observed.
+3. Update the appropriate results file (and the interpretation above) with what was actually observed.
 
 ## How the two harnesses differ in what they prove
 

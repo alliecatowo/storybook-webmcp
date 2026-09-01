@@ -14,6 +14,8 @@ import { dirname, join } from 'node:path'
 const HERE = dirname(fileURLToPath(import.meta.url))
 const POLYFILL = readFileSync(join(HERE, 'webmcp-polyfill.js'), 'utf8')
 const BASE = process.env.STORYBOOK_URL ?? 'http://127.0.0.1:6006'
+const RESULTS_PATH = process.env.EVAL_RESULTS_PATH ?? join(HERE, 'results.json')
+const VIDEO_DIR = process.env.EVAL_VIDEO_DIR
 
 const REVIEW = 'components-review--default'
 const ICON = 'components-icon--playground'
@@ -27,7 +29,9 @@ const record = (name, status, detail) => {
 
 const page = await (async () => {
   const browser = await chromium.launch()
-  const context = await browser.newContext()
+  const context = await browser.newContext(
+    VIDEO_DIR ? { recordVideo: { dir: VIDEO_DIR, size: { width: 1440, height: 1000 } } } : undefined
+  )
   await context.addInitScript(POLYFILL)
   const browserPage = await context.newPage()
   browserPage.on('pageerror', (e) => console.error('PAGE ERROR', e.message))
@@ -275,10 +279,12 @@ await gotoStory(REVIEW)
 await globalThis.__browser.close()
 
 const summary = {
+  target: BASE,
+  harness: 'headless Chromium with the local document.modelContext polyfill',
   passed: results.filter((r) => r.status === 'pass').length,
   failed: results.filter((r) => r.status === 'fail').length,
   results,
 }
-writeFileSync(join(HERE, 'results.json'), JSON.stringify(summary, null, 2))
+writeFileSync(RESULTS_PATH, `${JSON.stringify(summary, null, 2)}\n`)
 console.log(`\n${summary.passed} passed, ${summary.failed} failed`)
 process.exit(summary.failed ? 1 : 0)
