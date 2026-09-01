@@ -79,5 +79,6 @@ npx vercel --yes --prod
 - [x] Product-first README and explicit MealDrop demo boundary.
 - [x] HTTPS Vercel production deployment; Storybook is served at /storybook/.
 - [ ] Native Chrome WebMCP pane / ChatGPT-compatible agent run (requires the user's WebMCP browser session).
-- [ ] Final screen recording and screenshots (use DEMO.md).
+- [x] Headless HTTPS production-build screen recording artifact (`evals/artifacts/headless-webmcp-demo.webm`).
+- [ ] Native Chrome WebMCP screen recording and screenshots (requires the user's WebMCP browser session; use DEMO.md).
 - [x] Canonical live-demo URL published above.
