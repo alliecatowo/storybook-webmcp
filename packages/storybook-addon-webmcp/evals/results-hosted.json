@@ -1,5 +1,5 @@
 {
-  "target": "https://storybook-web-mcp.vercel.app/storybook",
+  "target": "https://storybook-web-mcp.vercel.app/storybook/",
   "harness": "headless Chromium with the local document.modelContext polyfill",
   "passed": 10,
   "failed": 0,
@@ -72,7 +72,11 @@
         "humanRatingBefore": 4.3,
         "ratingAfterGlobalsUpdate": 4.3,
         "changes": [],
-        "themeEnum": ["light", "dark", "side-by-side"],
+        "themeEnum": [
+          "light",
+          "dark",
+          "side-by-side"
+        ],
         "chosenViewport": "iphone5"
       }
     },
