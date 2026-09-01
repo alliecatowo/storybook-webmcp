@@ -8,10 +8,10 @@
  */
 
 import type { Capability, Change } from '../../core/types.js'
-import { TOOL_UPDATE_GLOBALS_PREFIX } from '../../core/constants.js'
+import { LIMITS, TOOL_UPDATE_GLOBALS_PREFIX } from '../../core/constants.js'
 import { abortError, internalError, isAbortError } from '../../core/errors.js'
 import { diff, mutationResult } from '../../core/result.js'
-import { setOwn } from '../../core/json.js'
+import { setOwn, toJsonSafe } from '../../core/json.js'
 import { assertFresh } from '../../storybook/lifecycle.js'
 import type { StorybookAdapter } from '../../storybook/storybook-adapter.js'
 import { validateOrFail } from '../validate.js'
@@ -45,7 +45,9 @@ function snapshotGlobals(record: Record<string, unknown>): Record<string, unknow
 
 /** Keep every before/after field JSON-visible, including an unset global. */
 function toEvidenceValue(value: unknown): unknown {
-  return value === undefined ? null : value
+  return value === undefined
+    ? null
+    : (toJsonSafe(value, { maxString: LIMITS.evidenceString }) ?? null)
 }
 
 /** Reads the effective `viewport.value` out of a globals record, however it's shaped. */
