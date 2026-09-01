@@ -52,6 +52,17 @@ The scripted shim harness runs the built Storybook in headless Chromium through 
 
 Native Chrome WebMCP/DevTools and a ChatGPT-compatible top-level tool run require a WebMCP-capable browser/session and must be recorded only after they are actually observed. The eight scenarios and capture checklist are in evals/cases.md and DEMO.md. No native-agent score is invented here.
 
+## Video handoff
+
+The repository includes a 23.44-second, 1.4 MB headless-Chromium capture at
+`evals/artifacts/headless-webmcp-demo.webm`. It is a silent mechanics recording (the file has a
+video stream and no audio stream), not the final narrated submission video and not native-agent
+evidence. No authenticated YouTube uploader is available in this workspace, so no video URL is
+claimed. Final action before submission: add permitted narration/audio, review the recording for
+clarity, upload it as an unlisted/public YouTube video, and replace this handoff note with the real
+URL. Native WebMCP screenshots/recording likewise remain pending until the user's supported
+browser session is available.
+
 ## Deployment
 
 Build the static demo with yarn build-all. The repository's vercel.json publishes build and serves Storybook at /storybook/:
