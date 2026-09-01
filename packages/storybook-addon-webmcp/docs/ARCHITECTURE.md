@@ -78,6 +78,23 @@ implementation plumbing for keeping those two documents in sync. The addon
 consumes it as an event source; it is never exposed as a protocol feature of
 the product itself (§2).
 
+### Why registration cannot depend on the panel (§24)
+
+`addons.register(ADDON_ID, api => { ... })` runs once, unconditionally, the
+moment Storybook's Manager loads this addon — independent of whether a human
+ever opens the WebMCP panel. `src/manager.tsx` calls `startWebMCPService(api)`
+and only afterward calls `addons.add(PANEL_ID, { render: ... })`; the service
+is fully running, with the three stable tools already registered, before the
+panel type is even declared to Storybook. This ordering is load-bearing, not
+cosmetic: starting the service from the panel's React component instead — on
+mount, or gated behind "panel is active" — would mean a browser agent driving
+Storybook with the WebMCP panel never opened finds no tools registered at
+all, since nothing else in the addon would ever call
+`startWebMCPService`. The service's lifetime is the Manager's lifetime; the
+panel is purely a `subscribe`/`getState` observer of whatever the service is
+already doing (`src/panel/panel-store.ts`), and can be closed, reopened, or
+never opened without the tool surface being affected.
+
 ## Authoritative state: one state, no mirror, no polling
 
 `src/storybook/storybook-adapter.ts` is the single module that touches the
@@ -86,12 +103,10 @@ compilers, the lifecycle brain, the tools, the panel — only ever sees the
 adapter's `StorybookAdapter` interface and the plain `StorybookState` object
 it returns from `readState()`. Direct `storybook/internal/*` imports are
 confined to the adapter/conditional boundary: `storybook-adapter.ts` imports
-`storybook/internal/core-events` for the event names it listens/waits on, and
-`conditional.ts` imports `storybook/internal/csf` for `includeConditionalArg`
-(see below). `panel/Panel.tsx` separately imports the `AddonPanel` UI-shell
-component from `storybook/internal/components` to render the panel frame —
-that is a presentational import, not a source of Manager state, and carries
-no `StorybookAdapter`-shaped API surface.
+`storybook/internal/core-events` for the event names it listens/waits on and
+calls Storybook's `includeConditionalArg` helper at that same boundary (see
+below). `panel/Panel.tsx` uses only React and its own small layout primitives;
+it does not import Storybook internals or acquire Manager state.
 
 There is exactly one authoritative state: whatever `api.getCurrentStoryData()`,
 `api.getArgs()`, `api.getGlobals()`, etc. return live from the Manager. The
@@ -110,6 +125,26 @@ This is what makes "the agent sees what the human sees" a structural
 guarantee rather than a best-effort one: there is nothing to fall out of
 sync, because there is nothing else being kept.
 
+### Reads must be detached copies, not live references
+
+Reading "the same live state" is not the same as handing out the same live
+_object_. Storybook's Manager API (`api.getArgs()`, `api.getGlobals()`, ...)
+returns references into its own internal state; mutating a global through
+`api.updateGlobals()` mutates that exact object in place. If the adapter
+returned those references directly, a mutation tool that snapshots "before",
+performs the update, and re-reads "after" to build the §20 evidence diff
+would find both variables pointing at the very same (now-mutated) object —
+the "before" value would already equal "after", and every mutation would
+report zero changes even though Storybook's UI visibly updated. `detach()` in
+`storybook-adapter.ts` exists precisely to close this hole: every state-object
+read (`getArgs`, `getGlobals`, `getUserGlobals`, `getStoryGlobals`) shallow-
+copies the top level and one level deeper for nested records such as
+`globals.viewport`, so a "before" snapshot taken through the adapter is
+frozen at the moment it was read, independent of whatever Storybook does to
+its own internal object afterward. This is what makes the mutation result
+contract's `changes[].before`/`after` pairs (§20) truthful rather than
+coincidentally-always-equal.
+
 ## Lifecycle and the churn invariant
 
 `src/storybook/lifecycle.ts` is the capability lifecycle brain (§17, §19,
@@ -120,23 +155,27 @@ previous one.
 ```
 Storybook event            lifecycle.ts                          service.ts / registry.ts
 ──────────────────         ──────────────────────────────        ──────────────────────────
-story-changed        ──►   onStoryChanged() fires first     ──►  registry.clearDynamic()
-                            (zero stale tools during the          (abort dynamicController)
-                            transition), then buildSnapshot()
+story-changed        ──►   onStoryChanged() fires,           ──►  registry.clearDynamic()
+                            no snapshot is built                   (abort dynamicController)
 
-story-prepared        ──►  buildSnapshot()                  ──►  sameSnapshot()? skip.
-args-updated           ──► (compileControls + compileGlobals      Different? registry
-globals-updated        ──►  + capabilityHash)                     .registerDynamic(newTools)
+story-prepared         ──► buildSnapshot()                   ──►  sameSnapshot()? skip.
+args-updated            ──► (compileControls + compileGlobals      Different? registry
+globals-updated         ──►  + capabilityHash)                     .registerDynamic(newTools)
 ```
 
 `watchLifecycle()` subscribes to `story-changed`, `story-prepared`,
 `args-updated`, and `globals-updated` (via `adapter.subscribeToLifecycle`,
 which listens on the Manager channel for `STORY_CHANGED`, `STORY_PREPARED`,
-`STORY_ARGS_UPDATED`, `GLOBALS_UPDATED`). `story-changed` is handled specially:
-it calls `onStoryChanged` — which the service wires to `registry.clearDynamic()`
-— *before* attempting to build a new snapshot, so the transition window between
-one story and the next has zero contextual tools registered rather than a
-stale set (§27).
+`STORY_ARGS_UPDATED`, `GLOBALS_UPDATED`). `story-changed` is handled specially
+and does _only_ one thing — it calls `onStoryChanged`, which the service wires
+to `registry.clearDynamic()` — and deliberately does **not** build a snapshot
+in the same handler: the new story's args/argTypes are not guaranteed to be
+ready yet when `story-changed` fires, so building a snapshot from it could
+register a capability off stale or half-loaded state. The transition window
+between one story and the next therefore has zero contextual tools registered
+(cleared by `story-changed`) rather than a stale set, until the _separate_
+`story-prepared` event (fired once Storybook has finished loading the new
+story) triggers the next `buildSnapshot()` (§27).
 
 Every other event triggers `buildSnapshot()` again, but a rebuild does not
 imply a re-registration. `sameSnapshot()` (in `lifecycle.ts`) compares two
@@ -155,7 +194,7 @@ conditional arg becoming visible/hidden, or navigating to a different story,
 changes the compiled schema and therefore the hash, which does trigger
 `registry.registerDynamic()` (`src/webmcp/registry.ts`) to abort the previous
 `dynamicController` and register a fresh set of contextual tools under a new
-`AbortController` (§26). Aborting the controller is the *only* unregistration
+`AbortController` (§26). Aborting the controller is the _only_ unregistration
 mechanism in the addon — there is no separate "unregister" call.
 
 `src/webmcp/service.ts` is the module that wires all of this into one
@@ -204,7 +243,7 @@ storybook_update_globals.11e8409a
 ```
 
 The hash depends only on the story id and the compiled schema shape — never
-on current control *values* — so ordinary value edits never change it
+on current control _values_ — so ordinary value edits never change it
 (§17). It changes exactly when the compiled schema itself changes: a
 different story, or a conditional control appearing/disappearing.
 
@@ -287,6 +326,52 @@ boolean surfaces all the way through `MutationResult`/`OpenStoryResult`
 (`core/types.ts`) into the tool's JSON response, so an agent (and the
 diagnostic panel) can distinguish "the value changed and Storybook confirmed
 it" from "the call returned but nothing was observed to change."
+
+## The panel snapshot must be memoised
+
+The diagnostic panel (§34) reads `PanelState` through React's
+`useSyncExternalStore` (`src/panel/panel-store.ts`'s `usePanelState`), which
+decides whether to re-render by comparing the object identity of successive
+`getSnapshot()` results — not their contents. `src/webmcp/service.ts` builds
+that `PanelState` object (`currentState()`), and if it built a fresh object
+literal on every call, `getSnapshot()` would return a new identity on every
+single read, including the reads React performs purely to check "did
+anything change". `useSyncExternalStore` would see a changed identity every
+time, re-render, call `getSnapshot()` again, see yet another new identity,
+and re-render again — forever, on every tick React can schedule, pinning a
+render loop that starves the rest of the Storybook Manager UI.
+
+`service.ts` avoids this with a `cachedState` cell: `currentState()` returns
+the cached object unchanged unless `notify()` has explicitly invalidated it
+(`cachedState = null`) because something real happened — a lifecycle event
+produced a different snapshot, a tool call completed, `toolchange` fired.
+Between real changes, repeated `getSnapshot()` calls return the exact same
+reference, so `useSyncExternalStore` correctly sees "nothing changed" and
+does not re-render. This is a general rule for anything feeding
+`useSyncExternalStore` in this addon, not an implementation detail local to
+one file: the snapshot function's identity stability is what the hook's
+correctness depends on.
+
+## Build constraint: classic JSX, not the automatic runtime
+
+Storybook globalises `react` for addon bundles (so the addon does not ship
+its own copy of the React module), but it does **not** globalise
+`react/jsx-runtime`. If this package's `.tsx` files were compiled with the
+automatic JSX runtime (`jsx: "react-jsx"`), every JSX expression would emit a
+call to `react/jsx-runtime`'s `jsx`/`jsxs` from a copy of that module bundled
+_into this addon_ — separate from the `react`/`react/jsx-runtime` copy
+Storybook's own Manager UI is running. React refuses to accept elements
+created by one copy of the runtime inside a tree owned by another copy, so
+every element this addon renders would be rejected at runtime.
+`tsconfig.json` therefore sets `"jsx": "react"` (the classic runtime,
+`React.createElement`), and every `.tsx` file (`manager.tsx`,
+`panel/Panel.tsx`, `panel/components.tsx`) keeps an explicit
+`import * as React from 'react'` — under the classic runtime that import is
+not optional decoration, it is what `React.createElement` resolves against.
+Dropping it is caught immediately by `tsc --noEmit` (`"This JSX tag requires
+'React' to be in scope"`), so the failure mode this guards against is not a
+silent one; it is a hard requirement the typecheck step enforces on every
+`.tsx` file in this package.
 
 ## Module map
 

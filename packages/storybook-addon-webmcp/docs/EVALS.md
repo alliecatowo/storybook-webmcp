@@ -5,15 +5,24 @@
 
 This is the index for the addon's eval suite. The suite exists to check one specific claim: that
 a browser agent, using only the WebMCP capability surface this addon publishes, can read and
-change the *same* Storybook state a human developer is looking at — with no separate agent state,
+change the _same_ Storybook state a human developer is looking at — with no separate agent state,
 no DOM scraping, and no sync layer.
 
 - **Case definitions:** `evals/cases.md` — the eight scenarios from `docs/SPEC.md` §42, verbatim,
   plus two extra harness checks. Each case states its setup, the exact human prompt, the expected
   tool and input, and the precise success criterion.
-- **Results:** `evals/results.md` — the results table. As of this writing every row reads "not yet
-  run — pending validation against a real WebMCP browser." No score in this repository has been
-  invented; results are recorded only after they are actually observed.
+- **Results:** `evals/results.json` (with interpretation in this document) — three tiers, reported separately and never conflated:
+  1. the unit/integration suite (`yarn vitest run --project=node`) — run, passing (14 files,
+     340 tests);
+  2. the ten cases run against a real, served Storybook **production build** in real headless
+     Chromium via Playwright, through the local `document.modelContext` shim
+     (`evals/run-evals.mjs` / `evals/webmcp-polyfill.js`) — run, results recorded (10/10 pass);
+  3. the same cases against a real WebMCP browser agent (Chrome's native WebMCP surface, or a
+     ChatGPT/Claude site-tools environment) — **not run**, pending hardware/browser access.
+
+  No score in this repository has been invented; results are recorded only after they are
+  actually observed, and a shim result (tier 2) is never reported as a real-agent result (tier 3).
+
 - **Harness:** `evals/run-evals.mjs`, using the shim at `evals/webmcp-polyfill.js`.
 
 ## What the evals prove about the product thesis
@@ -30,7 +39,8 @@ accidental:
   (evals 2–3);
 - the capability surface changes exactly when the human's editable surface changes — story
   navigation, not value edits — and never offers a capability against a story that's no longer
-  active (evals 5–6, plus the churn check);
+  active (evals 5–6, plus the churn check). The production-build shim recorded the new story/new
+  hash, stale-context rejection, and unchanged tool identity during a value edit;
 - the agent can also drive Storybook's own navigation, not just mutate the current story (eval 7);
 - and there's a controlled way back to the story's authored state (eval 8).
 
@@ -40,7 +50,7 @@ actually behave. That's why there are two harnesses, and why they are not interc
 
 ## How to run them
 
-See `evals/results.md` for the exact commands. In short:
+See `evals/results.json` and this document for the exact commands. In short:
 
 1. `yarn build:addon && yarn build-storybook:test` (or `yarn storybook` for a dev server), then
    serve `build/storybook`.
@@ -50,19 +60,20 @@ See `evals/results.md` for the exact commands. In short:
    - open the served Storybook in a browser with real WebMCP support and walk through
      `evals/cases.md` by hand, using that browser's WebMCP DevTools pane as the source of truth
      (real-browser harness — see `docs/SPEC.md` §43/§44).
-3. Update `evals/results.md` with what was actually observed.
+3. Update `evals/results.json` (and the interpretation above) with what was actually observed.
 
 ## How the two harnesses differ in what they prove
 
-| | Local shim (`run-evals.mjs`) | Real browser agent |
-|---|---|---|
-| `document.modelContext` | Hand-written polyfill (`webmcp-polyfill.js`) implementing `registerTool`, registration `AbortSignal`, `getTools`, `executeTool`, `toolchange` | Browser/site-tools' actual WebMCP implementation |
-| Who decides what to call | The script calls each tool directly with the exact input the spec expects | A model reads the published schema and decides what to call from a natural-language prompt |
-| What a "pass" shows | The addon's registration lifecycle, schema generation, hashing, verification, and error codes behave correctly | An agent can discover and correctly use the addon's tools from a prompt, in a real WebMCP environment |
-| What a "pass" does NOT show | Whether any real agent can find or use these tools | N/A — this is the actual claim the product makes |
-| Status here | Reproducible today, on demand, in CI-like conditions | Requires a browser with WebMCP (or a supported ChatGPT/Claude site-tools environment) and a human/agent walking `evals/cases.md` by hand |
+|                             | Local shim (`run-evals.mjs`)                                                                                                                  | Real browser agent                                                                                                                                                                                |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `document.modelContext`     | Hand-written polyfill (`webmcp-polyfill.js`) implementing `registerTool`, registration `AbortSignal`, `getTools`, `executeTool`, `toolchange` | Browser/site-tools' actual WebMCP implementation                                                                                                                                                  |
+| Who decides what to call    | The script calls each tool directly with the exact input the spec expects                                                                     | A model reads the published schema and decides what to call from a natural-language prompt                                                                                                        |
+| What a "pass" shows         | The addon's registration lifecycle, schema generation, hashing, verification, and error codes behave correctly                                | An agent can discover and correctly use the addon's tools from a prompt, in a real WebMCP environment                                                                                             |
+| What a "pass" does NOT show | Whether any real agent can find or use these tools                                                                                            | N/A — this is the actual claim the product makes                                                                                                                                                  |
+| Status here                 | Run against a real production Storybook build in real headless Chromium; results recorded in `evals/results.json` (tier 2)                    | Requires a browser with WebMCP (or a supported ChatGPT/Claude site-tools environment) and a human/agent walking `evals/cases.md` by hand; **not yet run** — all real-agent results remain pending |
 
 The shim harness is useful, real evidence about the addon's own correctness, and it is the only
 harness that's automatable today. It is explicitly **not** a substitute for the real-browser run:
-a shim-based pass cannot be reported as an eval result, and `evals/results.md` will not be
-considered populated until it reflects the real-browser run.
+a shim-based pass is reported in `evals/results.json` as a tier-2 result, labeled as such, and is
+never presented as tier-3 (real-agent) evidence. This evaluation remains incomplete until tier 3
+also reflects an actual real-browser/real-agent run.

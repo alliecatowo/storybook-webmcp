@@ -176,46 +176,60 @@ The hash depends only on story ID and schema shape, so changing `rating` from 1 
 change it, but navigating stories, or a conditional control changing visibility, does —
 `tests/hashing.test.ts` asserts both directions explicitly.
 
-Eight browser-level eval scenarios are defined and automated end-to-end against a real Storybook
-build in `evals/run-evals.mjs` (context, constrained mutation, invalid-bound rejection, the
-shared-state moment, dynamic capability swap, stale-context protection, navigation, reset), plus
-a value-change-does-not-churn-tools check and a progressive-enhancement check. As of this
-writing that harness has not yet been executed against a live browser in this environment — see
-Scope honesty below.
+Eight browser-level eval scenarios are defined in `evals/run-evals.mjs` (context, constrained
+mutation, invalid-bound rejection, the shared-state moment, dynamic capability swap,
+stale-context protection, navigation, reset), plus a value-change-does-not-churn-tools check and
+a progressive-enhancement check. The harness has been run against a real production Storybook
+build in headless Playwright Chromium, using only the deliberately small
+`document.modelContext` shim (`evals/webmcp-polyfill.js`) because headless Chromium does not
+provide native WebMCP. `evals/results.json` records **10/10 cases passing**, including a same-page
+stale-closure invocation that returned `STALE_CONTEXT`. A shim pass is real evidence about the
+addon's registration, schema, lifecycle, and verification mechanics; it is not evidence that a
+native browser agent selected those tools from natural language.
 
-What has been run and verified in this environment: the full unit/integration suite —
-157 tests across 8 files (`control-compiler.test.ts`, `global-compiler.test.ts`, `hashing.test.ts`,
-`lifecycle.test.ts`, `registry.test.ts`, `stale-context.test.ts`, `tools.test.ts`, and
-`mealdrop-integration.test.ts`, which exercises the compiler against MealDrop's real Review and
-Icon stories) — passes under `vitest run --project=node`.
+What has been run and verified in this environment: `yarn vitest run --project=node` passes with
+**340 tests across 14 test files**, including the security suite and MealDrop's real Review/Icon
+fixtures. `yarn check`, `yarn lint:check`, `yarn build:addon`, and `yarn build-storybook` also pass.
 
 ## Scope honesty
 
-Deliberately not built (spec §51): a traditional MCP client/server or Storybook MCP proxy, Claude
+Deliberately not built — the full list from spec §51, none of it reconsidered:
+
+a traditional MCP integration, a Storybook MCP proxy, an MCP client, an MCP server, Claude
 Channels, WebMCP Resources/Prompts/Sampling emulation, any polling loop, shadow/duplicated
-Storybook state, a backend of any kind, an LLM API or chat interface inside the addon, a source
-code or story-generation tool, an explicit play-function runner (opening a story already runs
-its `play` function naturally), any arbitrary-DOM or arbitrary-Storybook-API tool, cross-frame or
-cross-origin WebMCP, and a one-tool-per-component-prop design. The tool surface is fixed at six
-conceptual tools by contract, not by omission.
+Storybook state, a backend of any kind, an LLM API, a chat interface, a source code editor,
+component source mutation, a story-generation tool, a test-generation tool, an explicit
+play-function runner (opening a story already runs its `play` function naturally, so there is
+nothing to build), an arbitrary-DOM tool, an arbitrary-Storybook-API tool, iframe WebMCP,
+a cross-origin demo, a declarative WebMCP demo, generic arbitrary globals (the globals compiler
+exposes only the specific toolbar globals and viewport Storybook itself declares, never a
+free-form key/value surface), a one-tool-per-component-prop design, a huge context endpoint
+(`storybook_get_context` is bounded by the same `LIMITS` as every other tool), a custom fake
+application (MealDrop is the demo app, not a stand-in built for this challenge), and a custom
+marketing site. The tool surface is fixed at six conceptual tools by contract, not by omission.
 
 Pending real-browser validation, honestly stated:
 
-- The eight `evals/run-evals.mjs` scenarios and the two supplementary churn/progressive-
-  enhancement checks are written and runnable against a live Storybook + Playwright + the
-  Chrome WebMCP polyfill, but no `evals/results.json` has been produced in this environment.
-  There are no invented pass/fail numbers anywhere in this document or in the addon's docs —
-  only the unit-test result above (157/157, measured) is reported as a number.
+- `evals/results.json` (10/10, shim harness, described above) is real evidence about the addon's
+  own registration/hashing/verification mechanics, and nothing more. It has no model in the
+  loop — `run-evals.mjs` calls `executeTool` directly with each case's expected input; it never
+  asks an agent to read a schema and decide what to call — and it runs against a hand-written
+  polyfill, not Chrome's real `document.modelContext`. It does not demonstrate that a real agent
+  in a real browser discovers or correctly uses these tools from a natural-language prompt.
+  There are no invented pass/fail numbers anywhere in this document or in the addon's docs; the
+  340-test-count and the 10/10 shim-eval count above are the only numbers reported, and both are
+  measured, not estimated.
 - Chrome DevTools WebMCP-pane inspection and a ChatGPT-compatible top-level-tool invocation
   pass (spec §43–§44) have not been captured here.
 - The addon's production-build and static-serve behavior under MealDrop's actual Storybook
-  build pipeline has not been re-verified as part of this document; only `yarn workspace
-  storybook-addon-webmcp check` and the unit suite were run.
+  build pipeline was re-verified: `yarn build-storybook` completed successfully and the local
+  production-build harness recorded all ten cases passing.
 
 Until those browser passes are captured, treat every claim above about six tools, bounded
 results, stale-context protection, PATCH semantics, and capability hashing as verified at the
-unit/source level — true of the code that ships — and treat the golden demo flow as the intended,
-implemented behavior rather than a screen-recorded result.
+unit/source level and at the shim-harness level — true of the code that ships and of its
+registration mechanics — and treat the golden demo flow as the intended, implemented behavior
+rather than a screen-recorded or agent-observed result.
 
 ## Preexisting vs. built for this challenge
 

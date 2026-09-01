@@ -1,5 +1,4 @@
 import * as React from 'react'
-import { AddonPanel } from 'storybook/internal/components'
 import { useTheme } from 'storybook/theming'
 import { usePanelState } from './panel-store.js'
 import { LIMITS } from '../core/constants.js'
@@ -35,20 +34,27 @@ export function WebMCPPanel(props: { active: boolean }): React.JSX.Element {
   const contextLabel = state.story ? `${state.story.title} · ${state.story.name}` : null
 
   return (
-    <AddonPanel active={props.active}>
+    <div
+      aria-hidden={!props.active}
+      style={{ height: '100%', overflow: 'auto', display: props.active ? undefined : 'none' }}
+    >
       <div style={{ padding: '12px 16px', fontSize: '13px', color: theme.color.defaultText }}>
         {/* 1. Status */}
         <div style={{ ...sectionStyle, display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ color: state.supported ? theme.color.positive : theme.textMutedColor }}>
-            {state.supported ? '●' : '○'}
+          <span style={{ color: state.active ? theme.color.positive : theme.textMutedColor }}>
+            {state.active ? '●' : '○'}
           </span>
-          <span>{state.supported ? 'WebMCP active' : 'WebMCP unavailable in this browser'}</span>
+          <span>{state.active ? 'WebMCP active' : 'WebMCP unavailable in this browser'}</span>
         </div>
 
         {/* 2. Current context */}
         <div style={sectionStyle}>
           <div style={headingStyle}>Current context</div>
-          {contextLabel ? <div>{contextLabel}</div> : <div style={mutedStyle}>No story selected</div>}
+          {contextLabel ? (
+            <div>{contextLabel}</div>
+          ) : (
+            <div style={mutedStyle}>No story selected</div>
+          )}
         </div>
 
         {/* 3. Tool surface */}
@@ -86,7 +92,9 @@ export function WebMCPPanel(props: { active: boolean }): React.JSX.Element {
         <div style={sectionStyle}>
           <div style={headingStyle}>Tool changes</div>
           <div>{state.capabilityChanges} capability changes this session</div>
-          {state.lastToolChangeAt ? <div style={mutedStyle}>last: {state.lastToolChangeAt}</div> : null}
+          {state.lastToolChangeAt ? (
+            <div style={mutedStyle}>last: {state.lastToolChangeAt}</div>
+          ) : null}
         </div>
 
         {/* 6. Recent calls */}
@@ -106,7 +114,15 @@ export function WebMCPPanel(props: { active: boolean }): React.JSX.Element {
                     <span style={mutedStyle}> · {call.at}</span>
                   </div>
                   {call.lines.map((line, lineIndex) => (
-                    <div key={lineIndex} style={{ ...mutedStyle, ...monoStyle, fontSize: '11px', paddingLeft: '1.2em' }}>
+                    <div
+                      key={lineIndex}
+                      style={{
+                        ...mutedStyle,
+                        ...monoStyle,
+                        fontSize: '11px',
+                        paddingLeft: '1.2em',
+                      }}
+                    >
                       {line}
                     </div>
                   ))}
@@ -126,6 +142,6 @@ export function WebMCPPanel(props: { active: boolean }): React.JSX.Element {
           </ul>
         </div>
       </div>
-    </AddonPanel>
+    </div>
   )
 }

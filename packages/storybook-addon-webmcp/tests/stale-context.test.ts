@@ -4,7 +4,6 @@ import { createUpdateControlsTool } from '../src/webmcp/tools/update-controls.js
 import { createResetControlsTool } from '../src/webmcp/tools/reset-controls.js'
 import { createUpdateGlobalsTool } from '../src/webmcp/tools/update-globals.js'
 import type { StorybookAdapter } from '../src/storybook/storybook-adapter.js'
-import type { Capability } from '../src/core/types.js'
 
 /**
  * A small, mutable, in-memory fake of the StorybookAdapter boundary (spec §23),
@@ -19,7 +18,12 @@ function createFakeAdapter() {
 
   const stories: Record<
     string,
-    { title: string; name: string; args: Record<string, unknown>; argTypes: Record<string, unknown> }
+    {
+      title: string
+      name: string
+      args: Record<string, unknown>
+      argTypes: Record<string, unknown>
+    }
   > = {
     'components-review--default': {
       title: 'Components/Review',
@@ -150,7 +154,9 @@ describe('stale-context guarantee (spec §19, §40) — update controls', () => 
     // Icon's args must be byte-for-byte unchanged: a Review capability must
     // never accidentally mutate Icon.
     expect(rawArgs('components-icon--playground')).toEqual(iconArgsBefore)
-    expect(JSON.stringify(rawArgs('components-icon--playground'))).toBe(JSON.stringify(iconArgsBefore))
+    expect(JSON.stringify(rawArgs('components-icon--playground'))).toBe(
+      JSON.stringify(iconArgsBefore)
+    )
   })
 
   it('a stale hash on the SAME story (conditional control appeared) also returns STALE_CONTEXT', async () => {
@@ -299,7 +305,10 @@ describe('stale-context guarantee — update globals', () => {
     goTo('components-icon--playground')
     const globalsBefore = rawGlobals()
 
-    const result = (await tool.execute({ theme: 'dark' })) as { ok: boolean; error?: { code: string } }
+    const result = (await tool.execute({ theme: 'dark' })) as {
+      ok: boolean
+      error?: { code: string }
+    }
 
     expect(result.ok).toBe(false)
     expect(result.error?.code).toBe('STALE_CONTEXT')
@@ -323,7 +332,10 @@ describe('stale-context guarantee — update globals', () => {
 
     const globalsBefore = rawGlobals()
     const tool = createUpdateGlobalsTool(adapter, staleGlobalsCap)
-    const result = (await tool.execute({ theme: 'dark' })) as { ok: boolean; error?: { code: string } }
+    const result = (await tool.execute({ theme: 'dark' })) as {
+      ok: boolean
+      error?: { code: string }
+    }
 
     expect(result.ok).toBe(false)
     expect(result.error?.code).toBe('STALE_CONTEXT')

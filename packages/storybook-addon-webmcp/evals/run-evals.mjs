@@ -29,23 +29,49 @@ const page = await (async () => {
   const browser = await chromium.launch()
   const context = await browser.newContext()
   await context.addInitScript(POLYFILL)
-  const page = await context.newPage()
-  page.on('pageerror', (e) => console.error('PAGE ERROR', e.message))
+  const browserPage = await context.newPage()
+  browserPage.on('pageerror', (e) => console.error('PAGE ERROR', e.message))
   globalThis.__browser = browser
-  return page
+  return browserPage
 })()
 
 /** Storybook registers tools only once the manager has booted and a story is prepared. */
-const gotoStory = async (storyId) => {
-  await page.goto(`${BASE}/?path=/story/${storyId}`, { waitUntil: 'domcontentloaded' })
+const waitForDynamicTools = () =>
+  page.waitForFunction(
+    () =>
+      document.modelContext
+        ?.getTools()
+        .some((t) => t.name.startsWith('storybook_update_controls.')),
+    undefined,
+    { timeout: 30_000 }
+  )
+
+/**
+ * Client-side navigation, the way a human clicking the sidebar navigates: the
+ * Manager stays loaded and the page is never reloaded. A full page load would
+ * reset `document.modelContext` and destroy any capability an agent had already
+ * observed, which is exactly the state the stale-context eval needs to exercise.
+ */
+const navigateInApp = async (storyId) => {
+  await page.evaluate((id) => {
+    window.history.pushState({}, '', `?path=/story/${id}`)
+    window.dispatchEvent(new PopStateEvent('popstate'))
+  }, storyId)
   await page.waitForFunction(
     (id) =>
       document.modelContext
         ?.getTools()
-        .some((t) => t.name.startsWith('storybook_update_controls.')),
+        .some((t) => t.name.startsWith('storybook_update_controls.')) &&
+      window.location.search.includes(id),
     storyId,
     { timeout: 30_000 }
   )
+  await page.waitForTimeout(800)
+}
+
+const gotoStory = async (storyId) => {
+  await page.goto(`${BASE}/?path=/story/${storyId}`, { waitUntil: 'domcontentloaded' })
+  await waitForDynamicTools()
   await page.waitForTimeout(500)
 }
 
@@ -63,11 +89,11 @@ await gotoStory(REVIEW)
 {
   const ctx = await call('storybook_get_context')
   const rating = ctx?.controls?.editable?.find((c) => c.name === 'rating')
-  record(
-    'eval-1-context',
-    ctx?.ok && ctx.story?.id === REVIEW && rating ? 'pass' : 'fail',
-    { story: ctx?.story, rating, skipped: ctx?.controls?.skippedCount }
-  )
+  record('eval-1-context', ctx?.ok && ctx.story?.id === REVIEW && rating ? 'pass' : 'fail', {
+    story: ctx?.story,
+    rating,
+    skipped: ctx?.controls?.skippedCount,
+  })
 }
 
 // --- Eval 2: constrained mutation -----------------------------------------
@@ -117,17 +143,13 @@ await gotoStory(REVIEW)
   const res = await call(globalsTool.name, { theme: dark, viewport: { value: mobile } })
   const after = await call('storybook_get_context')
 
-  record(
-    'eval-4-shared-state',
-    res?.ok && after.controls.values.rating === 4.3 ? 'pass' : 'fail',
-    {
-      humanRatingBefore: before?.controls?.values?.rating,
-      ratingAfterGlobalsUpdate: after?.controls?.values?.rating,
-      changes: res?.changes,
-      themeEnum,
-      chosenViewport: mobile,
-    }
-  )
+  record('eval-4-shared-state', res?.ok && after.controls.values.rating === 4.3 ? 'pass' : 'fail', {
+    humanRatingBefore: before?.controls?.values?.rating,
+    ratingAfterGlobalsUpdate: after?.controls?.values?.rating,
+    changes: res?.changes,
+    themeEnum,
+    chosenViewport: mobile,
+  })
 }
 
 // --- Eval 5: dynamic capability -------------------------------------------
@@ -140,7 +162,7 @@ await gotoStory(REVIEW)
     window.__staleExecute = (input) => descriptor.execute(input, {})
   }, reviewControls.name)
   const changesBefore = await toolChanges()
-  await gotoStory(ICON)
+  await navigateInApp(ICON)
   const iconControls = await named('storybook_update_controls.')
   const nameEnum = iconControls?.inputSchema?.properties?.name?.enum
   const res = await call(iconControls.name, { name: 'star' })
@@ -199,7 +221,11 @@ await gotoStory(REVIEW)
 // --- Eval 7: navigation ----------------------------------------------------
 {
   const found = await call('storybook_find_stories', { query: 'checkout' })
-  const target = found?.matches?.[0]
+  // Prefer the UserFlows checkout story: Pages/Checkout stories prove search,
+  // while UserFlows/App proves that opening a story lets Storybook run its own
+  // play function naturally as part of rendering.
+  const target =
+    found?.matches?.find((match) => match.id.startsWith('userflows-app--')) ?? found?.matches?.[0]
   const opened = target ? await call('storybook_open_story', { storyId: target.id }) : null
   await page.waitForTimeout(1500)
   const ctx = await call('storybook_get_context')
@@ -235,11 +261,15 @@ await gotoStory(REVIEW)
   await ctx2.waitForTimeout(4000)
   const hasModelContext = await ctx2.evaluate(() => 'modelContext' in document)
   const rendered = await ctx2.evaluate(() => !!document.querySelector('#storybook-preview-iframe'))
-  record('progressive-enhancement-no-webmcp', !hasModelContext && rendered && !errors.length ? 'pass' : 'fail', {
-    modelContextPresent: hasModelContext,
-    storybookRendered: rendered,
-    pageErrors: errors,
-  })
+  record(
+    'progressive-enhancement-no-webmcp',
+    !hasModelContext && rendered && !errors.length ? 'pass' : 'fail',
+    {
+      modelContextPresent: hasModelContext,
+      storybookRendered: rendered,
+      pageErrors: errors,
+    }
+  )
 }
 
 await globalThis.__browser.close()

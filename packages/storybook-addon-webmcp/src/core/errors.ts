@@ -16,13 +16,17 @@ export function staleContext(): ErrorResult {
   return fail(
     'STALE_CONTEXT',
     'The human changed Storybook context after this capability was discovered. Refresh the available tools or inspect the current Storybook context and retry.',
-    true,
+    true
   )
 }
 
 /** storybook_open_story was given an id absent from the current index (spec §7). */
 export function storyNotFound(): ErrorResult {
-  return fail('STORY_NOT_FOUND', 'No story with that exact ID exists in the current Storybook index.', true)
+  return fail(
+    'STORY_NOT_FOUND',
+    'No story with that exact ID exists in the current Storybook index.',
+    true
+  )
 }
 
 /** A mutation tool ran with no story selected in the Manager. */
@@ -32,7 +36,11 @@ export function noCurrentStory(): ErrorResult {
 
 /** Storybook's Manager API has not finished initializing yet. */
 export function storybookNotReady(): ErrorResult {
-  return fail('STORYBOOK_NOT_READY', 'Storybook has not finished loading yet. Wait and retry.', true)
+  return fail(
+    'STORYBOOK_NOT_READY',
+    'Storybook has not finished loading yet. Wait and retry.',
+    true
+  )
 }
 
 /** A supplied value failed schema/runtime validation. */
@@ -50,7 +58,7 @@ export function updateNotApplied(): ErrorResult {
   return fail(
     'UPDATE_NOT_APPLIED',
     'Storybook did not apply the requested change. The story or control may not support it.',
-    true,
+    true
   )
 }
 
@@ -59,17 +67,13 @@ export function navigationTimeout(): ErrorResult {
   return fail(
     'NAVIGATION_TIMEOUT',
     'Storybook did not finish navigating to the requested story in time.',
-    true,
+    true
   )
 }
 
 /** A control/global mutation exceeded its verification timeout. */
 export function updateTimeout(): ErrorResult {
-  return fail(
-    'UPDATE_TIMEOUT',
-    'Storybook did not confirm the requested update in time.',
-    true,
-  )
+  return fail('UPDATE_TIMEOUT', 'Storybook did not confirm the requested update in time.', true)
 }
 
 /**

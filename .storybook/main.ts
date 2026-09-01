@@ -10,7 +10,8 @@ const config: StorybookConfig = {
   addons: [
     '@storybook/addon-vitest',
     '@storybook/addon-a11y',
-    // TODO: this addon has a bad instrumentation of getConfig.asyncWrapper that should be fixed
+    // Keep the existing demo instrumentation addon enabled for MealDrop's
+    // Storybook test workflow; it is unrelated to WebMCP registration.
     'storybook-addon-test-codegen',
     '@storybook/addon-designs',
     '@storybook/addon-docs',

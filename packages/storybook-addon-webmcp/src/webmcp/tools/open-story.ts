@@ -4,7 +4,14 @@
  * exact story id and confirms the move actually landed.
  */
 import { TOOL_OPEN_STORY } from '../../core/constants.js'
-import { abortError, isAbortError, storyNotFound, navigationTimeout, internalError } from '../../core/errors.js'
+import {
+  abortError,
+  isAbortError,
+  storyNotFound,
+  navigationTimeout,
+  internalError,
+  invalidInput,
+} from '../../core/errors.js'
 import { openStoryResult } from '../../core/result.js'
 import type { StorybookAdapter } from '../../storybook/storybook-adapter.js'
 import type { ToolDescriptor } from '../registry.js'
@@ -15,7 +22,11 @@ function isOpenStoryInput(value: unknown): value is OpenStoryInput {
   return (
     typeof value === 'object' &&
     value !== null &&
-    typeof (value as { storyId?: unknown }).storyId === 'string'
+    !Array.isArray(value) &&
+    typeof (value as { storyId?: unknown }).storyId === 'string' &&
+    (value as { storyId: string }).storyId.length >= 1 &&
+    (value as { storyId: string }).storyId.length <= 200 &&
+    Object.keys(value).every((key) => key === 'storyId')
   )
 }
 
@@ -24,11 +35,8 @@ export function createOpenStoryTool(adapter: StorybookAdapter): ToolDescriptor {
   return {
     name: TOOL_OPEN_STORY,
     title: 'Open a Storybook story',
-    description: 'Navigate the shared Storybook UI to an exact story returned by storybook_find_stories.',
-    annotations: {
-      readOnlyHint: false,
-      untrustedContentHint: true,
-    },
+    description:
+      'Navigate the shared Storybook UI to an exact story returned by storybook_find_stories.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -42,6 +50,10 @@ export function createOpenStoryTool(adapter: StorybookAdapter): ToolDescriptor {
       required: ['storyId'],
       additionalProperties: false,
     },
+    annotations: {
+      readOnlyHint: false,
+      untrustedContentHint: true,
+    },
     async execute(input, context) {
       const signal = context?.signal
 
@@ -51,18 +63,18 @@ export function createOpenStoryTool(adapter: StorybookAdapter): ToolDescriptor {
       }
 
       if (!isOpenStoryInput(input)) {
-        return storyNotFound()
+        return invalidInput('"storyId" must be a string between 1 and 200 characters.')
       }
 
       const { storyId } = input
 
-      // Steps 2-4: the id must exist in the current index and be a story.
-      const entry = adapter.findStory(storyId)
-      if (!entry) {
-        return storyNotFound()
-      }
-
       try {
+        // Steps 2-4: the id must exist in the current index and be a story.
+        const entry = adapter.findStory(storyId)
+        if (!entry) {
+          return storyNotFound()
+        }
+
         // Steps 5-9: the adapter snapshots `before`, attaches its listeners
         // before navigating, and waits up to TIMEOUTS.navigation.
         const { before, verified } = await adapter.selectStory(storyId, signal)

@@ -1,87 +1,38 @@
 # Eval results
 
-**Status: not yet run.** No case below has been executed against a real WebMCP browser. Every row
-is a placeholder until the run described below has actually happened and this file has been
-regenerated from that run's output.
+This file records the measured status of the reproducible local harness. The harness runs the
+real production Storybook build in headless Chromium through `webmcp-polyfill.js`; it does not
+provide a language model or Chrome's native WebMCP implementation. A real-agent/browser run is
+therefore tracked separately and is intentionally not claimed here.
 
-Per the rules of this document set: do not invent scores, do not fill in a plausible-looking
-"pass" — record actual results only, from `evals/results.json`, once it exists.
+## Local production-build shim
 
-| # | Case | Status |
-|---|------|--------|
-| 1 | context | not yet run — pending validation against a real WebMCP browser |
-| 2 | constrained mutation | not yet run — pending validation against a real WebMCP browser |
-| 3 | invalid bound | not yet run — pending validation against a real WebMCP browser |
-| 4 | human/agent shared state (most important) | not yet run — pending validation against a real WebMCP browser |
-| 5 | dynamic capability | not yet run — pending validation against a real WebMCP browser |
-| 6 | stale protection | not yet run — pending validation against a real WebMCP browser |
-| 7 | navigation | not yet run — pending validation against a real WebMCP browser |
-| 8 | reset | not yet run — pending validation against a real WebMCP browser |
-| extra | capability churn on ordinary value change | not yet run — pending validation against a real WebMCP browser |
-| extra | progressive enhancement, no WebMCP present | not yet run — pending validation against a real WebMCP browser |
-
-## How to populate this table
-
-The eight cases are defined in `evals/cases.md`. There are two ways to exercise them; only the
-second one is capable of producing a result that belongs in this file's "Status" column as
-anything other than "not yet run."
-
-### 1. Local shim harness (`evals/run-evals.mjs`) — diagnostic only, not a substitute
-
-This harness drives the addon's real registration lifecycle (`registerTool`, the registration
-`AbortSignal`, `getTools()`, `executeTool()`, the `toolchange` event) through a hand-written
-`document.modelContext` polyfill at `evals/webmcp-polyfill.js`, because headless Playwright
-Chromium does not implement `document.modelContext` — Chrome's real WebMCP surface is not present
-there. The harness stands in for a human dragging a Controls slider by emitting Storybook's own
-`updateStoryArgs` channel event (`evals/run-evals.mjs`, eval 4), which is the same channel event
-the Controls panel itself emits, so the "human" side of eval 4 is a faithful simulation even
-though the "agent" side is going through a shim.
-
-To run it:
+Command:
 
 ```sh
-# from the repo root
-yarn build:addon
-yarn build-storybook:test   # or: yarn storybook, and set STORYBOOK_URL to the dev server
-yarn --cwd packages/storybook-addon-webmcp/.. # (no-op; ensures workspace deps are installed)
-
-# serve the static build, e.g.:
-npx serve build/storybook -l 6006 &
-
-# then, from the repo root:
+yarn build-storybook
 node packages/storybook-addon-webmcp/evals/run-evals.mjs
 ```
 
-Set `STORYBOOK_URL` if Storybook isn't on `http://127.0.0.1:6006`. The script writes
-`packages/storybook-addon-webmcp/evals/results.json` (pass/fail per case plus the raw detail
-object each case recorded — schemas seen, tool names, verified diffs, etc.) and exits non-zero if
-anything failed.
+Measured result: **10 passed, 0 failed**. The raw details, including observed schemas, tool names,
+verified diffs, stale-context response, and final story IDs, are in `evals/results.json`.
 
-**What this harness proves:** that the addon's registration/deregistration lifecycle, schema
-generation, hashing, verification, and error codes behave correctly against the *mechanics* of
-WebMCP as specified. It is real evidence about the addon's own code.
+| #     | Case                                      | Shim result                                                                                |
+| ----- | ----------------------------------------- | ------------------------------------------------------------------------------------------ |
+| 1     | context                                   | pass                                                                                       |
+| 2     | constrained mutation                      | pass                                                                                       |
+| 3     | invalid bound                             | pass (`INVALID_VALUE`; rating never became 9)                                              |
+| 4     | human/agent shared state                  | pass (rating 4.3 survived dark + mobile globals update)                                    |
+| 5     | dynamic capability                        | pass (Review hash replaced by Icon hash; `star` applied)                                   |
+| 6     | stale protection                          | pass (`STALE_CONTEXT`; Icon remained untouched)                                            |
+| 7     | navigation                                | pass (opened `UserFlows/App` checkout story; play runs through normal Storybook rendering) |
+| 8     | reset                                     | pass                                                                                       |
+| extra | capability churn on ordinary value change | pass (tool identity unchanged)                                                             |
+| extra | progressive enhancement without WebMCP    | pass (Storybook rendered with no page errors)                                              |
 
-**What this harness does NOT prove:** that a real agent, talking to a real browser's
-`document.modelContext` implementation (Chrome's native WebMCP, or a ChatGPT/Claude site-tools
-integration), discovers and correctly uses these tools from natural-language prompts. The
-polyfill has no model in the loop — `run-evals.mjs` calls `executeTool` directly with the exact
-input each case's spec expects, it does not ask an agent to read a schema and decide what to call.
-So a shim-based "pass" demonstrates the addon works; it does not demonstrate an agent finds it
-useful, and it must never be reported as a substitute for eval results.
+## Real-browser status
 
-### 2. Real-browser agent run — the run that actually populates this table
-
-1. Build and serve the MealDrop Storybook with the addon (same first steps as above:
-   `yarn build:addon && yarn build-storybook:test`, then serve `build/storybook`).
-2. Open it in a browser with real WebMCP support (Chrome with the WebMCP flag/extension enabled,
-   or a ChatGPT/Claude environment with site-tools support against that page), per §43/§44 of
-   `docs/SPEC.md`.
-3. For each case in `evals/cases.md`, follow its Setup, issue its exact human prompt, and record:
-   the tool(s) actually invoked, the actual input sent, and whether the Success criterion was met
-   — using the browser's WebMCP DevTools pane (tool names, schemas, invocation history,
-   completed/canceled/error states) as the source of truth, not the agent's own narration.
-4. Replace every "not yet run" row above with the observed status (`pass` / `fail`) and a short
-   note of what was actually observed (tool name called, input sent, whether the success criterion
-   held). Keep failed rows as `fail`, with the actual failure — do not omit them.
-
-Until step 3–4 has happened, the table above is the correct and honest state of this file.
+The native Chrome WebMCP pane and a ChatGPT-compatible top-level-tool agent have not been run in
+this environment. Those results remain **not yet run**, rather than being inferred from the shim.
+When that run is available, record the actual tool invocations and observed outcomes here and in
+`docs/EVALS.md`; do not replace the measured shim table with invented scores.

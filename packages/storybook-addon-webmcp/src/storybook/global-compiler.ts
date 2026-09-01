@@ -27,6 +27,10 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+function hasOwn(record: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(record, key)
+}
+
 function primitiveTypeName(value: JsonPrimitive): 'string' | 'number' | 'boolean' | 'null' {
   return value === null ? 'null' : (typeof value as 'string' | 'number' | 'boolean')
 }
@@ -48,6 +52,10 @@ function collectToolbarValues(items: unknown[]): JsonPrimitive[] | null {
     } else {
       raw = item
     }
+    // Storybook uses value-less/undefined entries for separators and labels;
+    // they are not selectable values and must not poison an otherwise safe
+    // finite toolbar capability.
+    if (raw === undefined) continue
     if (!isJsonPrimitive(raw)) return null
     values.push(raw)
   }
@@ -80,7 +88,10 @@ function compileToolbarGlobal(globalType: unknown): CompiledToolbarGlobal | null
   }
   schema.enum = values
 
-  const description = typeof globalType.description === 'string' ? truncate(globalType.description, LIMITS.description) : undefined
+  const description =
+    typeof globalType.description === 'string'
+      ? truncate(globalType.description, LIMITS.description)
+      : undefined
   if (description) schema.description = description
 
   return { description, values, schema }
@@ -101,14 +112,26 @@ function currentViewportIsRotated(globals: Record<string, unknown>): boolean {
 
 /** Flattens `parameters.viewport.options` into safe, self-contained descriptors (spec §30). */
 function parseViewportOptions(rawOptions: unknown): ViewportOption[] {
-  if (!isPlainRecord(rawOptions)) return []
+  const entries: Array<[string, unknown]> = Array.isArray(rawOptions)
+    ? rawOptions.map((option, index) => {
+        const id =
+          isPlainRecord(option) && typeof option.id === 'string' ? option.id : String(index)
+        return [id, option]
+      })
+    : isPlainRecord(rawOptions)
+      ? Object.entries(rawOptions)
+      : []
   const out: ViewportOption[] = []
-  for (const [id, option] of Object.entries(rawOptions)) {
+  for (const [id, option] of entries) {
     if (!isPlainRecord(option)) continue
     const name = typeof option.name === 'string' ? option.name : id
     const styles = isPlainRecord(option.styles) ? option.styles : {}
-    const width = typeof styles.width === 'string' ? styles.width : ''
-    const height = typeof styles.height === 'string' ? styles.height : ''
+    // A viewport is only useful to the agent when Storybook supplied its
+    // actual dimensions. Ignore malformed entries instead of publishing an
+    // option whose context claims an empty/unknown size.
+    if (typeof styles.width !== 'string' || typeof styles.height !== 'string') continue
+    const width = styles.width
+    const height = styles.height
     const type = typeof option.type === 'string' ? option.type : undefined
     out.push({ id, name, width, height, type })
   }
@@ -123,7 +146,7 @@ type CompiledViewport = {
 
 /** Compiles the built-in viewport global into an object property schema (spec §10B, §30). */
 function compileViewport(state: StorybookState): CompiledViewport | null {
-  if (VIEWPORT_GLOBAL_NAME in state.storyGlobals) return null
+  if (hasOwn(state.storyGlobals, VIEWPORT_GLOBAL_NAME)) return null
 
   const parameter = state.viewportParameter
   if (!isPlainRecord(parameter)) return null
@@ -135,9 +158,13 @@ function compileViewport(state: StorybookState): CompiledViewport | null {
   const currentValue = currentViewportValue(state.globals)
   const currentRotated = currentViewportIsRotated(state.globals)
 
-  const valueEnum = allOptions.map((option) => option.id)
+  // Keep the effective value selectable even when Storybook configured the
+  // maximum number of viewport options and the current value is an additional
+  // responsive/default key. The hard bound applies to the exposed enum too.
+  const configuredIds = allOptions.map((option) => option.id)
+  const valueEnum = configuredIds.slice(0, LIMITS.viewportOptions)
   if (currentValue !== null && !valueEnum.includes(currentValue)) {
-    valueEnum.push(currentValue)
+    valueEnum.splice(Math.max(0, LIMITS.viewportOptions - 1), 1, currentValue)
   }
   const boundedEnum = valueEnum.slice(0, LIMITS.viewportOptions)
   const boundedOptions = allOptions.slice(0, LIMITS.viewportOptions)
@@ -171,20 +198,30 @@ export function compileGlobals(state: StorybookState): CompiledGlobals {
 
   for (const [name, globalType] of Object.entries(state.globalTypes)) {
     if (name === VIEWPORT_GLOBAL_NAME) continue
-    if (name in state.storyGlobals) continue
+    if (hasOwn(state.storyGlobals, name)) continue
 
     const compiled = compileToolbarGlobal(globalType)
     if (!compiled) continue
 
     editable.push({ name, description: compiled.description, options: compiled.values })
-    properties[name] = compiled.schema
+    Object.defineProperty(properties, name, {
+      value: compiled.schema,
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    })
   }
 
   let viewportContext: ViewportContext | undefined
   const viewport = compileViewport(state)
   if (viewport) {
     editable.push(viewport.descriptor)
-    properties[viewport.descriptor.name] = viewport.schema
+    Object.defineProperty(properties, viewport.descriptor.name, {
+      value: viewport.schema,
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    })
     viewportContext = viewport.context
   }
 
@@ -198,7 +235,14 @@ export function compileGlobals(state: StorybookState): CompiledGlobals {
   const sortedProperties: Record<string, JsonSchema> = {}
   for (const name of propertyNames) {
     const property = properties[name]
-    if (property) sortedProperties[name] = property
+    if (property) {
+      Object.defineProperty(sortedProperties, name, {
+        value: property,
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      })
+    }
   }
 
   const schema: ObjectSchema = {

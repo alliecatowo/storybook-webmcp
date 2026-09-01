@@ -1,6 +1,6 @@
 {
-  "passed": 9,
-  "failed": 1,
+  "passed": 10,
+  "failed": 0,
   "results": [
     {
       "name": "eval-1-context",
@@ -42,6 +42,7 @@
           "changes": [
             {
               "path": "args.rating",
+              "before": null,
               "after": 1
             }
           ],
@@ -68,11 +69,7 @@
         "humanRatingBefore": 4.3,
         "ratingAfterGlobalsUpdate": 4.3,
         "changes": [],
-        "themeEnum": [
-          "light",
-          "dark",
-          "side-by-side"
-        ],
+        "themeEnum": ["light", "dark", "side-by-side"],
         "chosenViewport": "iphone5"
       }
     },
@@ -94,7 +91,7 @@
           "sun",
           "star"
         ],
-        "toolChangeEvents": 0,
+        "toolChangeEvents": 6,
         "result": {
           "ok": true,
           "action": "update_controls",
@@ -112,10 +109,15 @@
     },
     {
       "name": "eval-6-stale-context",
-      "status": "fail",
+      "status": "pass",
       "detail": {
         "staleInvocation": {
-          "missing": "storybook_update_controls.48dd2eb3"
+          "ok": false,
+          "error": {
+            "code": "STALE_CONTEXT",
+            "message": "The human changed Storybook context after this capability was discovered. Refresh the available tools or inspect the current Storybook context and retry.",
+            "retryable": true
+          }
         },
         "iconUntouched": {
           "name": "star",
@@ -182,13 +184,13 @@
           "ok": true,
           "action": "open_story",
           "before": "components-icon--playground",
-          "after": "pages-checkoutpage--empty",
+          "after": "userflows-app--to-checkout-page",
           "verified": true
         },
         "landedOn": {
-          "id": "pages-checkoutpage--empty",
-          "title": "Pages/CheckoutPage",
-          "name": "Empty",
+          "id": "userflows-app--to-checkout-page",
+          "title": "UserFlows/App",
+          "name": "To Checkout Page",
           "viewMode": "story"
         }
       }

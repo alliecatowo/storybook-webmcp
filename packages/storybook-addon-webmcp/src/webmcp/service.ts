@@ -6,10 +6,16 @@
  * file computes — it never drives registration itself.
  */
 import type { API } from 'storybook/manager-api'
-import { LIMITS } from '../core/constants.js'
-import type { CapabilitySnapshot, Change, JsonSafeValue, PanelCall, PanelState } from '../core/types.js'
+import { LIMITS, TIMEOUTS } from '../core/constants.js'
+import type {
+  CapabilitySnapshot,
+  Change,
+  JsonSafeValue,
+  PanelCall,
+  PanelState,
+} from '../core/types.js'
 import { createStorybookAdapter } from '../storybook/storybook-adapter.js'
-import { sameSnapshot, watchLifecycle } from '../storybook/lifecycle.js'
+import { buildSnapshot, sameSnapshot, watchLifecycle } from '../storybook/lifecycle.js'
 import { createRegistry, type ToolDescriptor } from './registry.js'
 import { createGetContextTool } from './tools/get-context.js'
 import { createFindStoriesTool } from './tools/find-stories.js'
@@ -59,7 +65,13 @@ function formatChange(change: Change): string {
  */
 function genericDescribeResult(result: unknown): string[] {
   if (typeof result !== 'object' || result === null) return []
-  const r = result as { ok?: unknown; action?: unknown; changes?: unknown; before?: unknown; after?: unknown }
+  const r = result as {
+    ok?: unknown
+    action?: unknown
+    changes?: unknown
+    before?: unknown
+    after?: unknown
+  }
   if (r.ok !== true) return []
   if (r.action === 'open_story') {
     const before = typeof r.before === 'string' ? r.before : '(none)'
@@ -97,6 +109,8 @@ export function startWebMCPService(api: API): WebMCPService {
 
   /** Memoised panel snapshot; cleared by notify() whenever state genuinely changes. */
   let cachedState: PanelState | null = null
+  /** Pending one-shot re-validation of a capability registered mid-settle. */
+  let settleHandle: ReturnType<typeof setTimeout> | null = null
 
   /**
    * The panel reads this through `useSyncExternalStore`, which compares
@@ -144,7 +158,12 @@ export function startWebMCPService(api: API): WebMCPService {
       notify()
     },
     onCall: (call) => {
-      recentCalls.unshift({ label: call.label, ok: call.ok, lines: call.lines, at: formatTime(new Date()) })
+      recentCalls.unshift({
+        label: call.label,
+        ok: call.ok,
+        lines: call.lines,
+        at: formatTime(new Date()),
+      })
       recentCalls.length = Math.min(recentCalls.length, LIMITS.recentCalls)
       notify()
     },
@@ -152,22 +171,74 @@ export function startWebMCPService(api: API): WebMCPService {
 
   // Stable, session-lifetime tools (spec §25): registered exactly once, ever.
   registry.registerSession(
-    [createGetContextTool(adapter), createFindStoriesTool(adapter), createOpenStoryTool(adapter)].map(
-      withDescribeResult,
-    ),
+    [
+      createGetContextTool(adapter),
+      createFindStoriesTool(adapter),
+      createOpenStoryTool(adapter),
+    ].map(withDescribeResult)
   )
+
+  /**
+   * The Manager keeps settling its own state for a short while after
+   * STORY_PREPARED -- notably it normalises globals, which can drop a viewport
+   * value that was present when the capability was first compiled. That
+   * normalisation arrives without a lifecycle event we can observe, so a
+   * capability registered during the settling window would disagree forever
+   * with what the tools recompile at execute time, and every call would return
+   * STALE_CONTEXT against a story the human never left.
+   *
+   * One deferred re-validation per registration closes that window. It is
+   * bounded and self-cancelling -- a single frame, not an interval -- so the
+   * addon still never polls Storybook (spec §22).
+   */
+  function scheduleSettleCheck(): void {
+    if (settleHandle !== null) return
+    settleHandle = setTimeout(() => {
+      settleHandle = null
+      if (stopped) return
+      void buildSnapshot(adapter).then((settled) => {
+        if (stopped || adapter.getCurrentStory()?.id !== settled.storyId) return
+        if (sameSnapshot(settled, currentSnapshot)) return
+        registry.registerDynamic(buildDynamicTools(settled))
+        currentSnapshot = settled
+        bumpCapabilityChange()
+        notify()
+      })
+    }, TIMEOUTS.settle)
+  }
 
   function buildDynamicTools(snapshot: CapabilitySnapshot): ToolDescriptor[] {
     const tools: ToolDescriptor[] = []
     if (snapshot.controls) {
       const editableNames = snapshot.controls.compiled.editable.map((descriptor) => descriptor.name)
       tools.push(withDescribeResult(createUpdateControlsTool(adapter, snapshot.controls)))
-      tools.push(withDescribeResult(createResetControlsTool(adapter, snapshot.controls, editableNames)))
+      tools.push(
+        withDescribeResult(createResetControlsTool(adapter, snapshot.controls, editableNames))
+      )
     }
     if (snapshot.globals) {
       tools.push(withDescribeResult(createUpdateGlobalsTool(adapter, snapshot.globals)))
     }
     return tools
+  }
+
+  /**
+   * Applies a newly compiled capability snapshot if it still belongs to the
+   * live story. The current-story check is important for the initial async
+   * build: Manager registration can race the first navigation event, and a
+   * snapshot compiled for the previous story must never be published after
+   * that story has already changed.
+   */
+  function applySnapshot(snapshot: CapabilitySnapshot): void {
+    if (stopped) return
+    if ((adapter.getCurrentStory()?.id ?? '') !== snapshot.storyId) return
+    // Ordinary value edits must never cause capability churn (spec §26).
+    if (sameSnapshot(snapshot, currentSnapshot)) return
+    registry.registerDynamic(buildDynamicTools(snapshot))
+    currentSnapshot = snapshot
+    bumpCapabilityChange()
+    notify()
+    scheduleSettleCheck()
   }
 
   const unwatch = watchLifecycle(adapter, {
@@ -178,14 +249,22 @@ export function startWebMCPService(api: API): WebMCPService {
       notify()
     },
     onSnapshot: (snapshot) => {
-      // Ordinary value edits must never cause capability churn (spec §26).
-      if (sameSnapshot(snapshot, currentSnapshot)) return
-      registry.registerDynamic(buildDynamicTools(snapshot))
-      currentSnapshot = snapshot
-      bumpCapabilityChange()
-      notify()
+      applySnapshot(snapshot)
     },
   })
+
+  // A Manager addon can be registered after the initial STORY_PREPARED event
+  // (for example when a host restores a persisted story). Compile once right
+  // away so the contextual tools are available even when no later lifecycle
+  // event is emitted. This is a one-shot startup read, not a polling loop; a
+  // story-id check prevents it from publishing a snapshot that became stale
+  // while Web Crypto was hashing it.
+  void buildSnapshot(adapter)
+    .then(applySnapshot)
+    .catch(() => {
+      // A missing/temporarily unavailable Manager state is recoverable through
+      // the normal Storybook lifecycle events; never make Storybook boot fail.
+    })
 
   function subscribe(listener: (state: PanelState) => void): () => void {
     listeners.add(listener)
@@ -201,6 +280,10 @@ export function startWebMCPService(api: API): WebMCPService {
   function stop(): void {
     if (stopped) return
     stopped = true
+    if (settleHandle !== null) {
+      clearTimeout(settleHandle)
+      settleHandle = null
+    }
     unwatch()
     registry.dispose()
     notify()

@@ -70,7 +70,7 @@ above the agent takes.
 ## Eval 4 — human/agent shared state ⭐ THE MOST IMPORTANT PRODUCT EVAL
 
 This is the single most important product eval. Every other eval demonstrates a mechanism; this
-one demonstrates the thesis — that the human and the agent read and write the *same* Storybook
+one demonstrates the thesis — that the human and the agent read and write the _same_ Storybook
 state, with no separate agent-side copy to keep in sync.
 
 **Setup:** On `components-review--default`, a human manually drags the rating Control to **4.3**
@@ -193,13 +193,13 @@ product thesis depends on:
 
 ### Capability churn on an ordinary value change
 
-**What it checks:** changing a control's *value* (e.g. rating 4 → 2 via
+**What it checks:** changing a control's _value_ (e.g. rating 4 → 2 via
 `storybook_update_controls`) must **not** cause the dynamic tool to be unregistered and
 re-registered. The tool name (including its hash) before and after the value change must be
 identical, and the `toolchange` event must not fire for this kind of update.
 
 **Why it matters:** the spec's dynamic-capability model only re-derives (and re-hashes) the tool
-surface when the *shape* of what's editable changes — not on every keystroke. If ordinary value
+surface when the _shape_ of what's editable changes — not on every keystroke. If ordinary value
 edits churned the tool registration, every WebMCP client watching for `toolchange` would thrash
 constantly during normal human use.
 

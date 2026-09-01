@@ -6,10 +6,17 @@
  * move a single control without disturbing every other value the human set.
  */
 
-import { TIMEOUTS, TOOL_UPDATE_CONTROLS_PREFIX } from '../../core/constants.js'
-import { abortError, internalError, isAbortError, updateNotApplied, updateTimeout } from '../../core/errors.js'
+import { LIMITS, TIMEOUTS, TOOL_UPDATE_CONTROLS_PREFIX } from '../../core/constants.js'
+import {
+  abortError,
+  internalError,
+  isAbortError,
+  updateNotApplied,
+  updateTimeout,
+} from '../../core/errors.js'
 import { changesFor, mutationResult } from '../../core/result.js'
 import type { Capability } from '../../core/types.js'
+import { setOwn, toJsonSafe } from '../../core/json.js'
 import { assertFresh } from '../../storybook/lifecycle.js'
 import type { StorybookAdapter } from '../../storybook/storybook-adapter.js'
 import { validateOrFail } from '../validate.js'
@@ -34,7 +41,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
       (error: unknown) => {
         clearTimeout(timer)
         reject(error)
-      },
+      }
     )
   })
 }
@@ -42,12 +49,30 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 /** True for both real `Error`-based AbortErrors and DOMException-based ones. */
 function isAbort(error: unknown): boolean {
   if (isAbortError(error)) return true
-  return typeof error === 'object' && error !== null && (error as { name?: unknown }).name === 'AbortError'
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { name?: unknown }).name === 'AbortError'
+  )
 }
 
 /** Structural equality good enough for comparing patch values to authoritative Storybook args. */
 function valuesEqual(a: unknown, b: unknown): boolean {
   return Object.is(a, b) || JSON.stringify(a) === JSON.stringify(b)
+}
+
+/**
+ * Storybook's `args` record simply omits a key the human never explicitly
+ * set; reading it back then yields `undefined`. `undefined` is not a JSON
+ * value, so a Change carrying it as `before`/`after` silently loses that key
+ * once the result crosses a JSON boundary (spec §20's "always return
+ * evidence" guarantee would otherwise be broken for exactly this case).
+ * Normalizing to `null` -- a real, JSON-safe "absence" value -- keeps every
+ * Change carrying both keys.
+ */
+function toEvidenceValue(value: unknown): unknown {
+  if (value === undefined) return null
+  return toJsonSafe(value, { maxString: LIMITS.evidenceString }) ?? null
 }
 
 /**
@@ -57,7 +82,10 @@ function valuesEqual(a: unknown, b: unknown): boolean {
  * Storybook, so a Review capability can never mutate an Icon story just
  * because the agent called the tool late.
  */
-export function createUpdateControlsTool(adapter: StorybookAdapter, capability: Capability): ToolDescriptor {
+export function createUpdateControlsTool(
+  adapter: StorybookAdapter,
+  capability: Capability
+): ToolDescriptor {
   return {
     name: `${TOOL_UPDATE_CONTROLS_PREFIX}.${capability.hash}`,
     title: 'Update current Storybook controls',
@@ -76,12 +104,14 @@ export function createUpdateControlsTool(adapter: StorybookAdapter, capability: 
         const invalid = validateOrFail(capability.schema, input)
         if (invalid) return invalid
 
-        const patch = input as Record<string, unknown>
-        const keys = Object.keys(patch)
+        const requested = input as Record<string, unknown>
+        const patch: Record<string, unknown> = {}
+        const keys = Object.keys(requested)
+        for (const key of keys) setOwn(patch, key, requested[key])
 
         const beforeArgs = adapter.getArgs()
         const before: Record<string, unknown> = {}
-        for (const key of keys) before[key] = beforeArgs[key]
+        for (const key of keys) setOwn(before, key, toEvidenceValue(beforeArgs[key]))
 
         let after: Record<string, unknown>
         try {
@@ -94,7 +124,10 @@ export function createUpdateControlsTool(adapter: StorybookAdapter, capability: 
         const applied = keys.every((key) => valuesEqual(after[key], patch[key]))
         if (!applied) return updateNotApplied()
 
-        const changes = changesFor('args', before, after, keys)
+        const afterEvidence: Record<string, unknown> = {}
+        for (const key of keys) setOwn(afterEvidence, key, toEvidenceValue(after[key]))
+
+        const changes = changesFor('args', before, afterEvidence, keys, beforeArgs, after)
         return mutationResult('update_controls', capability.storyId, changes, true)
       } catch (error) {
         if (isAbort(error)) throw error

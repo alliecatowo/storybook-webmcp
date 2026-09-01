@@ -1,4 +1,6 @@
 {
+  "buildCommand": "yarn build-all",
+  "outputDirectory": "build",
   "redirects": [
     {
       "source": "/storybook",
