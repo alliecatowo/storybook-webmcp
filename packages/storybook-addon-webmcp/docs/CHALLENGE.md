@@ -2,6 +2,17 @@
 
 September 2026
 
+## Official judge requirements
+
+According to the [OpenAI challenge overview](https://openai.com/webmcp-challenge/) and [Devpost
+submission guidance](https://webmcp.devpost.com/resources), judges need a working hosted project,
+public open-source code, a project description, and a public or unlisted demo video under three
+minutes with audio explaining the build and WebMCP usage. The submission deadline is September 3,
+2026 at 1:00 PM PT. The live URL should be tested in ChatGPT's in-app browser or Chrome with
+WebMCP enabled. This repository's shim evals are mechanics evidence; they do not satisfy native
+browser-agent validation, which remains a separate pending gate. See [SUBMISSION.md](./SUBMISSION.md)
+for the release checklist and exact handoff status.
+
 ## Thesis
 
 **«Your agent shouldn't have its own Storybook. It should work in yours.»**
