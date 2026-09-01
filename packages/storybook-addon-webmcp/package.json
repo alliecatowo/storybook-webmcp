@@ -35,7 +35,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && tsc -p tsconfig.build.json",
     "check": "tsc --noEmit -p tsconfig.json",
     "prepublishOnly": "yarn build"
   },
