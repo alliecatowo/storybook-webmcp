@@ -41,3 +41,6 @@ storybook-static
 !/**/.yarn/sdks
 !/**/.yarn/versions
 /**/.pnp.*
+
+# addon build output
+packages/*/dist
