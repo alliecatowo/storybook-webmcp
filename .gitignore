@@ -44,3 +44,4 @@ storybook-static
 
 # addon build output
 packages/*/dist
+.vercel

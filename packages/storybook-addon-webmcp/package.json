@@ -3,6 +3,15 @@
   "version": "0.1.0",
   "description": "Compiles the live semantic state of your Storybook into a WebMCP capability surface, so a browser agent works inside the exact Storybook session you are using.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alliecatowo/storybook-webmcp.git",
+    "directory": "packages/storybook-addon-webmcp"
+  },
+  "bugs": {
+    "url": "https://github.com/alliecatowo/storybook-webmcp/issues"
+  },
+  "homepage": "https://github.com/alliecatowo/storybook-webmcp/tree/main/packages/storybook-addon-webmcp",
   "type": "module",
   "keywords": [
     "storybook-addons",
