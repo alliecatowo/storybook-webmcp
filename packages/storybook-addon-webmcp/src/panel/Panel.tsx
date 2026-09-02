@@ -20,12 +20,12 @@ export function WebMCPPanel(props: { active: boolean }): React.JSX.Element {
   const state = usePanelState()
 
   const mutedStyle: React.CSSProperties = { color: theme.textMutedColor }
-  const sectionStyle: React.CSSProperties = { marginBottom: '1.5rem' }
+  const sectionStyle: React.CSSProperties = { marginBottom: '1rem' }
   const headingStyle: React.CSSProperties = {
-    fontSize: '11px',
+    fontSize: '10px',
     fontWeight: 700,
     textTransform: 'uppercase',
-    letterSpacing: '0.05em',
+    letterSpacing: '0.04em',
     color: theme.textMutedColor,
     marginBottom: '0.5rem',
   }
@@ -50,6 +50,11 @@ export function WebMCPPanel(props: { active: boolean }): React.JSX.Element {
           </span>
           <span>{state.active ? 'WebMCP active' : 'WebMCP unavailable in this browser'}</span>
         </div>
+        {!state.active ? (
+          <div style={{ ...mutedStyle, marginTop: '-0.5rem', marginBottom: '1rem', lineHeight: 1.4 }}>
+            This Storybook still works normally. Agent tools appear when the browser provides WebMCP.
+          </div>
+        ) : null}
 
         {/* 2. Current context */}
         <div style={sectionStyle}>
@@ -67,7 +72,7 @@ export function WebMCPPanel(props: { active: boolean }): React.JSX.Element {
           {state.tools.length === 0 ? (
             <div style={mutedStyle}>No tools registered</div>
           ) : (
-            <ul style={{ margin: 0, paddingLeft: '1.1em' }}>
+            <ul style={{ margin: 0, paddingLeft: '1.1em', lineHeight: 1.45 }}>
               {state.tools.map((tool) => (
                 <li key={tool.name}>
                   {tool.title}
