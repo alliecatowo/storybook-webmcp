@@ -87,6 +87,21 @@ never opened without the tool surface being affected.
 
 ## Authoritative state: one state, no mirror, no polling
 
+### Live session versus authoring
+
+WebMCP operates on the Storybook session the human currently has open. Control and global
+mutations change live Manager state and the rendered Preview; they do not edit component source,
+rewrite stories, or imply a saved repository change. Any persistence or “save from UI” workflow
+belongs to Storybook or a separately enabled authoring feature, outside this addon's capability
+surface.
+
+The hosted/static demo follows the same boundary: Vercel provides a real Storybook session in the
+browser, while this addon remains a client-side Manager integration with no backend or
+synchronization service. A future collaborative-authoring mode would need to be an explicit opt-in,
+separately named capability with its own confirmation, persistence, authorization, and audit
+semantics. It must never be inferred from the live-session tools or silently turn a control update
+into a source/repository write.
+
 `src/storybook/storybook-adapter.ts` is the single module that touches the
 Storybook Manager API (§23). Every other module in the addon — the
 compilers, the lifecycle brain, the tools, the panel — only ever sees the
