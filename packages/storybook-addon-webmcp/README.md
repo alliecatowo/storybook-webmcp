@@ -36,6 +36,9 @@ Add that entry to `.storybook/main.ts`. For this experimental branch only, a hos
 live authoring from its Manager config by setting `globalThis.__STORYBOOK_WEBMCP_AUTHORING__ = true`
 and running a development server. This exposes `storybook_save_story` and
 `storybook_create_story`; static builds and development sessions without the flag remain ephemeral.
+This is a development-only proof of concept and is not part of the published addon or the Vercel
+static demo; the main branch's six-tool surface is unchanged. It has no native-browser or YouTube
+validation claim.
 
 The tools use Storybook 10.5's own channel contract, not a private filesystem endpoint:
 `SAVE_STORY_REQUEST` (`saveStoryRequest`) with `{ id, payload: { args, csfId, importPath, name? } }`,
