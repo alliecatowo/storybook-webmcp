@@ -178,7 +178,7 @@ export function startWebMCPService(api: API): WebMCPService {
       createOpenStoryTool(adapter),
       // Storybook's saveStoryRequest server handler exists only in a writable
       // development server. This explicit host opt-in keeps static builds ephemeral.
-      ...((globalThis as typeof globalThis & { CONFIG_TYPE?: string; __STORYBOOK_WEBMCP_AUTHORING__?: boolean }).CONFIG_TYPE === 'DEVELOPMENT' && (globalThis as typeof globalThis & { CONFIG_TYPE?: string; __STORYBOOK_WEBMCP_AUTHORING__?: boolean }).__STORYBOOK_WEBMCP_AUTHORING__ === true
+      ...((globalThis as typeof globalThis & { CONFIG_TYPE?: string; __STORYBOOK_WEBMCP_AUTHORING__?: boolean }).CONFIG_TYPE === 'DEVELOPMENT' && (globalThis as typeof globalThis & { CONFIG_TYPE?: string; __STORYBOOK_WEBMCP_AUTHORING__?: boolean }).__STORYBOOK_WEBMCP_AUTHORING__ === true && typeof adapter.saveStory === 'function'
         ? [createSaveStoryTool(adapter), createCreateStoryTool(adapter)]
         : []),
     ].map(withDescribeResult)
