@@ -34,6 +34,7 @@ export type ErrorCode =
   | 'UPDATE_NOT_APPLIED'
   | 'NAVIGATION_TIMEOUT'
   | 'UPDATE_TIMEOUT'
+  | 'AUTHORING_UNAVAILABLE'
   | 'INTERNAL_ERROR'
 
 export type ErrorResult = {

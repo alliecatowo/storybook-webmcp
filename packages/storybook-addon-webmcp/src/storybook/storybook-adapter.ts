@@ -479,20 +479,33 @@ export function createStorybookAdapter(api: API): StorybookAdapter {
     if (signal?.aborted) throw abortError()
     const entry = getEntry()
     const channel = api.getChannel?.()
-    if (!entry || entry.type !== 'story' || !channel) throw new Error('Storybook authoring is unavailable')
+    if (!entry || entry.type !== 'story' || !channel)
+      throw new Error('Storybook authoring is unavailable')
     const id = `${Date.now()}-${Math.random()}`
-    const args = isPlainRecord((entry as { args?: unknown }).args)
+    const currentArgs = getArgs()
+    const args = isPlainRecord(currentArgs)
       ? Object.fromEntries(
-          Object.entries((entry as { args: Record<string, unknown> }).args).filter(
-            ([key, value]) => !Object.is(value, (entry as { initialArgs?: Record<string, unknown> }).initialArgs?.[key])
+          Object.entries(currentArgs as Record<string, unknown>).filter(
+            ([key, value]) =>
+              !Object.is(
+                value,
+                (entry as { initialArgs?: Record<string, unknown> }).initialArgs?.[key]
+              )
           )
         )
       : {}
     return await new Promise<Record<string, unknown>>((resolve, reject) => {
-      const onResponse = (response: { id?: string; success?: boolean; payload?: Record<string, unknown>; error?: string }) => {
+      const onResponse = (response: {
+        id?: string
+        success?: boolean
+        payload?: Record<string, unknown>
+        error?: string
+      }) => {
         if (response.id !== id) return
         channel.off(SAVE_STORY_RESPONSE, onResponse)
-        response.success ? resolve(response.payload ?? {}) : reject(new Error(response.error ?? 'Storybook did not save the story'))
+        response.success
+          ? resolve(response.payload ?? {})
+          : reject(new Error(response.error ?? 'Storybook did not save the story'))
       }
       channel.on(SAVE_STORY_RESPONSE, onResponse)
       const onAbort = () => {
@@ -503,7 +516,7 @@ export function createStorybookAdapter(api: API): StorybookAdapter {
       channel.emit(SAVE_STORY_REQUEST, {
         id,
         payload: {
-          args: JSON.stringify(name ? (entry.args ?? {}) : args),
+          args: JSON.stringify(name ? currentArgs : args),
           csfId: entry.id,
           importPath: entry.importPath,
           ...(name ? { name } : {}),

@@ -71,6 +71,7 @@ export const TIMEOUTS = {
    * and that settling arrives without an observable lifecycle event.
    */
   settle: 250,
+  authoring: 1500,
 } as const
 
 /** Length of the hexadecimal capability fingerprint appended to tool names. */

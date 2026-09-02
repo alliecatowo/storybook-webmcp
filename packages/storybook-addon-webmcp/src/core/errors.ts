@@ -76,6 +76,14 @@ export function updateTimeout(): ErrorResult {
   return fail('UPDATE_TIMEOUT', 'Storybook did not confirm the requested update in time.', true)
 }
 
+export function authoringUnavailable(): ErrorResult {
+  return fail(
+    'AUTHORING_UNAVAILABLE',
+    'Story authoring requires an opted-in writable Storybook development server.',
+    true
+  )
+}
+
 /**
  * Wraps an unexpected exception. The cause is logged in full only in dev
  * builds (guarded defensively since import.meta.env is absent under some
