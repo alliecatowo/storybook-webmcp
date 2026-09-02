@@ -495,6 +495,28 @@ export function createStorybookAdapter(api: API): StorybookAdapter {
         )
       : {}
     return await new Promise<Record<string, unknown>>((resolve, reject) => {
+      let settled = false
+      const timer = setTimeout(
+        () => finishReject(new Error('Storybook authoring timed out')),
+        TIMEOUTS.authoring
+      )
+      const cleanup = () => {
+        clearTimeout(timer)
+        channel.off(SAVE_STORY_RESPONSE, onResponse)
+        signal?.removeEventListener('abort', onAbort)
+      }
+      const finishResolve = (value: Record<string, unknown>) => {
+        if (settled) return
+        settled = true
+        cleanup()
+        resolve(value)
+      }
+      const finishReject = (error: Error) => {
+        if (settled) return
+        settled = true
+        cleanup()
+        reject(error)
+      }
       const onResponse = (response: {
         id?: string
         success?: boolean
@@ -502,26 +524,28 @@ export function createStorybookAdapter(api: API): StorybookAdapter {
         error?: string
       }) => {
         if (response.id !== id) return
-        channel.off(SAVE_STORY_RESPONSE, onResponse)
         response.success
-          ? resolve(response.payload ?? {})
-          : reject(new Error(response.error ?? 'Storybook did not save the story'))
+          ? finishResolve(response.payload ?? {})
+          : finishReject(new Error(response.error ?? 'Storybook did not save the story'))
       }
       channel.on(SAVE_STORY_RESPONSE, onResponse)
       const onAbort = () => {
-        channel.off(SAVE_STORY_RESPONSE, onResponse)
-        reject(abortError())
+        finishReject(abortError())
       }
       signal?.addEventListener('abort', onAbort, { once: true })
-      channel.emit(SAVE_STORY_REQUEST, {
-        id,
-        payload: {
-          args: JSON.stringify(name ? currentArgs : args),
-          csfId: entry.id,
-          importPath: entry.importPath,
-          ...(name ? { name } : {}),
-        },
-      })
+      try {
+        channel.emit(SAVE_STORY_REQUEST, {
+          id,
+          payload: {
+            args: JSON.stringify(name ? currentArgs : args),
+            csfId: entry.id,
+            importPath: entry.importPath,
+            ...(name ? { name } : {}),
+          },
+        })
+      } catch (error) {
+        finishReject(error instanceof Error ? error : new Error(String(error)))
+      }
     })
   }
 
