@@ -14,6 +14,8 @@ export const ADDON_TITLE = 'WebMCP'
 export const TOOL_GET_CONTEXT = 'storybook_get_context'
 export const TOOL_FIND_STORIES = 'storybook_find_stories'
 export const TOOL_OPEN_STORY = 'storybook_open_story'
+export const TOOL_SAVE_STORY = 'storybook_save_story'
+export const TOOL_CREATE_STORY = 'storybook_create_story'
 
 /** Prefixes for contextual tools; the capability hash is appended after a dot. */
 export const TOOL_UPDATE_CONTROLS_PREFIX = 'storybook_update_controls'

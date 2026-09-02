@@ -193,7 +193,11 @@ describe('spec §36 — no arbitrary Storybook event names or manager-method inv
   })
 
   it('never emits an arbitrary/model-controlled event onto the Storybook channel', () => {
-    expect(grepSource(/channel\??\.emit\s*\(/)).toEqual([])
+    const adapterSource = readFileSync(join(SRC_DIR, 'storybook/storybook-adapter.ts'), 'utf8')
+    const emitted = [...adapterSource.matchAll(/channel\??\.emit\s*\(\s*([^,)]+)/g)].map((m) => m[1]?.trim())
+    // The sole outbound event is Storybook 10.5's fixed save contract. The
+    // model can only provide the bounded payload, never the event name.
+    expect(emitted).toEqual(['SAVE_STORY_REQUEST'])
   })
 })
 

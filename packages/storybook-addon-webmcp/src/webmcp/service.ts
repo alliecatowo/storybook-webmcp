@@ -23,6 +23,7 @@ import { createOpenStoryTool } from './tools/open-story.js'
 import { createUpdateControlsTool } from './tools/update-controls.js'
 import { createResetControlsTool } from './tools/reset-controls.js'
 import { createUpdateGlobalsTool } from './tools/update-globals.js'
+import { createCreateStoryTool, createSaveStoryTool } from './tools/authoring.js'
 
 export type WebMCPService = {
   subscribe(listener: (state: PanelState) => void): () => void
@@ -175,6 +176,11 @@ export function startWebMCPService(api: API): WebMCPService {
       createGetContextTool(adapter),
       createFindStoriesTool(adapter),
       createOpenStoryTool(adapter),
+      // Storybook's saveStoryRequest server handler exists only in a writable
+      // development server. This explicit host opt-in keeps static builds ephemeral.
+      ...((globalThis as typeof globalThis & { CONFIG_TYPE?: string; __STORYBOOK_WEBMCP_AUTHORING__?: boolean }).CONFIG_TYPE === 'DEVELOPMENT' && (globalThis as typeof globalThis & { CONFIG_TYPE?: string; __STORYBOOK_WEBMCP_AUTHORING__?: boolean }).__STORYBOOK_WEBMCP_AUTHORING__ === true
+        ? [createSaveStoryTool(adapter), createCreateStoryTool(adapter)]
+        : []),
     ].map(withDescribeResult)
   )
 

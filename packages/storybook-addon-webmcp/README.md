@@ -32,7 +32,17 @@ There is exactly one authoritative state: Storybook's own Manager state. The add
 addons: ['storybook-addon-webmcp']
 ```
 
-Add that entry to `.storybook/main.ts`. No further configuration — the addon has no options, needs no Preview entry, and does nothing until a browser with WebMCP support opens the Manager.
+Add that entry to `.storybook/main.ts`. For this experimental branch only, a host may opt into
+live authoring from its Manager config by setting `globalThis.__STORYBOOK_WEBMCP_AUTHORING__ = true`
+and running a development server. This exposes `storybook_save_story` and
+`storybook_create_story`; static builds and development sessions without the flag remain ephemeral.
+
+The tools use Storybook 10.5's own channel contract, not a private filesystem endpoint:
+`SAVE_STORY_REQUEST` (`saveStoryRequest`) with `{ id, payload: { args, csfId, importPath, name? } }`,
+awaiting the matching `SAVE_STORY_RESPONSE` (`saveStoryResponse`). The installed
+`storybook/dist/core-server/presets/common-preset.js` registers this handler through
+`initializeSaveStory` and writes the CSF file only in the server process. The built-in Controls
+panel uses the same request/response pair for its human Save/Create actions.
 
 ## How it works
 

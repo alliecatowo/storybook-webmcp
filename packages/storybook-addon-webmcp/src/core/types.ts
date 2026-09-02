@@ -72,6 +72,8 @@ export type OpenStoryResult = {
 
 export type ToolResult = { ok: true; [key: string]: unknown } | ErrorResult
 
+export type AuthoringResult = ToolResult & { action?: 'save_story' | 'create_story' }
+
 // ---------------------------------------------------------------------------
 // Compiled control surface
 // ---------------------------------------------------------------------------

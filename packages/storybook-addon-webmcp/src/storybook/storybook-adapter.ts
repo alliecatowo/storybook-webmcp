@@ -10,6 +10,8 @@ import {
   STORY_PREPARED,
   STORY_ARGS_UPDATED,
   GLOBALS_UPDATED,
+  SAVE_STORY_REQUEST,
+  SAVE_STORY_RESPONSE,
 } from 'storybook/internal/core-events'
 import { includeConditionalArg } from 'storybook/internal/csf'
 import type { IndexStory, StoryRef, StorybookState } from '../core/types.js'
@@ -65,6 +67,8 @@ export type StorybookAdapter = {
   getViewportConfiguration(): unknown
   readState(): StorybookState
   subscribeToLifecycle(listener: (event: LifecycleEvent) => void): () => void
+  /** Storybook's built-in writable-dev-server authoring channel. */
+  saveStory?(input: { name?: string }, signal?: AbortSignal): Promise<Record<string, unknown>>
 }
 
 /** Deliberate cancellation surfaces as a real AbortError, never a fake success. */
@@ -471,6 +475,43 @@ export function createStorybookAdapter(api: API): StorybookAdapter {
     }
   }
 
+  const saveStory: StorybookAdapter['saveStory'] = async ({ name }, signal) => {
+    if (signal?.aborted) throw abortError()
+    const entry = getEntry()
+    const channel = api.getChannel?.()
+    if (!entry || entry.type !== 'story' || !channel) throw new Error('Storybook authoring is unavailable')
+    const id = `${Date.now()}-${Math.random()}`
+    const args = isPlainRecord((entry as { args?: unknown }).args)
+      ? Object.fromEntries(
+          Object.entries((entry as { args: Record<string, unknown> }).args).filter(
+            ([key, value]) => !Object.is(value, (entry as { initialArgs?: Record<string, unknown> }).initialArgs?.[key])
+          )
+        )
+      : {}
+    return await new Promise<Record<string, unknown>>((resolve, reject) => {
+      const onResponse = (response: { id?: string; success?: boolean; payload?: Record<string, unknown>; error?: string }) => {
+        if (response.id !== id) return
+        channel.off(SAVE_STORY_RESPONSE, onResponse)
+        response.success ? resolve(response.payload ?? {}) : reject(new Error(response.error ?? 'Storybook did not save the story'))
+      }
+      channel.on(SAVE_STORY_RESPONSE, onResponse)
+      const onAbort = () => {
+        channel.off(SAVE_STORY_RESPONSE, onResponse)
+        reject(abortError())
+      }
+      signal?.addEventListener('abort', onAbort, { once: true })
+      channel.emit(SAVE_STORY_REQUEST, {
+        id,
+        payload: {
+          args: JSON.stringify(name ? (entry.args ?? {}) : args),
+          csfId: entry.id,
+          importPath: entry.importPath,
+          ...(name ? { name } : {}),
+        },
+      })
+    })
+  }
+
   return {
     getCurrentStory,
     getStoryIndex,
@@ -489,5 +530,6 @@ export function createStorybookAdapter(api: API): StorybookAdapter {
     getViewportConfiguration,
     readState,
     subscribeToLifecycle,
+    saveStory,
   }
 }
