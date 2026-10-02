@@ -246,7 +246,7 @@ rather than a screen-recorded or agent-observed result.
 ## Preexisting vs. built for this challenge
 
 **Preexisting:** MealDrop (Yann Braga's demo app, forked at
-`/home/allie/develop/storybook-web-mcp`) and Storybook 10.5.5 itself, including its Manager API,
+a local checkout) and Storybook 10.5.5 itself, including its Manager API,
 Controls, globals/toolbar system, and story index. MealDrop's components, stories, theme
 `globalTypes`, and Icon options are used only as the demo's real-world data; the addon does not
 special-case any of them.
