@@ -51,8 +51,11 @@ export function WebMCPPanel(props: { active: boolean }): React.JSX.Element {
           <span>{state.active ? 'WebMCP active' : 'WebMCP unavailable in this browser'}</span>
         </div>
         {!state.active ? (
-          <div style={{ ...mutedStyle, marginTop: '-0.5rem', marginBottom: '1rem', lineHeight: 1.4 }}>
-            This Storybook still works normally. Agent tools appear when the browser provides WebMCP.
+          <div
+            style={{ ...mutedStyle, marginTop: '-0.5rem', marginBottom: '1rem', lineHeight: 1.4 }}
+          >
+            This Storybook still works normally. Agent tools appear when the browser provides
+            WebMCP.
           </div>
         ) : null}
 
