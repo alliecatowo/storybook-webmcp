@@ -36,6 +36,7 @@
     ]
   },
   "resolutions": {
+    "esbuild@npm:^0.27.0": "^0.28.1",
     "@use-it/event-listener@npm:^0.1.2": "patch:@use-it/event-listener@npm%3A0.1.7#~/.yarn/patches/@use-it-event-listener-npm-0.1.7-56ef42a654.patch"
   },
   "dependencies": {
