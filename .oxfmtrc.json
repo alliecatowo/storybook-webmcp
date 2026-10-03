@@ -12,6 +12,7 @@
     ".husky",
     ".yarn",
     "build",
+    "docs",
     "node_modules",
     "public",
     "src/assets",
