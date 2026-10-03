@@ -54,3 +54,4 @@ packages/*/dist
 # VitePress
 docs/.vitepress/cache/
 docs/.vitepress/dist/
+docs/node_modules/
