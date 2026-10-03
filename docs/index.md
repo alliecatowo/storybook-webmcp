@@ -5,17 +5,22 @@ pageClass: sb-page
 sidebar: false
 ---
 
-<h1><span class="sb-prompt">$</span> Your agent shouldn't have its own Storybook. It should work in yours.</h1>
+<div class="sb-top">
+<div class="sb-top-text">
+<h1>Your agent shouldn't have its own Storybook. It should work in yours.</h1>
 <p class="sb-lede">A Manager-side Storybook addon that turns the story you have open, with its controls, globals and viewport, into WebMCP tools for browser agents. No MCP server, no shadow state, no DOM automation.</p>
 <div class="sb-actions">
   <a class="sb-primary" href="https://storybook-web-mcp.vercel.app/storybook/">try the live demo</a>
   <a href="./guide/getting-started">get started</a>
   <a href="https://github.com/alliecatowo/storybook-webmcp">github</a>
 </div>
+<p class="sb-install"><code>npm install -D storybook-addon-webmcp</code></p>
+</div>
+<div class="sb-top-shot"><div class="sb-crop"><img src="./media/review.png" alt="Storybook with the WebMCP panel open on Components / Review / Default, listing the six tools, compiler state and recent calls."></div>
+<p class="sb-note">The WebMCP panel in the demo Storybook, after an agent set the review rating to 1.</p></div>
+</div>
 
-```sh
-npm install -D storybook-addon-webmcp
-```
+## install
 
 Published on npm as [`storybook-addon-webmcp`](https://www.npmjs.com/package/storybook-addon-webmcp). ESM-only, requires Storybook ^10.0.0. Register it:
 
@@ -37,26 +42,33 @@ This is the deployed Storybook, running the addon against a demo host (MealDrop)
 </div>
 <p class="sb-note">Prefer a full tab? <a href="https://storybook-web-mcp.vercel.app/storybook/?path=/story/components-review--default" target="_blank" rel="noopener">Open the demo</a>. The <a href="./guide/overview">overview</a> walks through a six-step flow to try with an agent.</p>
 
-## the panel
-
-<div class="sb-crop"><img src="./media/review.png" alt="Storybook with the WebMCP panel open on Components / Review / Default, listing the six tools, compiler state and recent calls."></div>
-<p class="sb-note">The WebMCP panel in the demo Storybook, after an agent set the review rating to 1.</p>
-
 ## what you get
 
 <dl class="sb-facts">
+  <div>
   <dt>one state</dt>
   <dd>Human and agent use the same Storybook Manager APIs. Drag a control yourself and the agent's next call sees it.</dd>
+  </div>
+  <div>
   <dt>six tools</dt>
   <dd>Three stable (<code>get_context</code>, <code>find_stories</code>, <code>open_story</code>) and three contextual tools for controls and globals that follow the open story.</dd>
+  </div>
+  <div>
   <dt>generated schemas</dt>
   <dd>ArgTypes and globals become bounded JSON Schema. Controls that are unsafe to expose are excluded.</dd>
+  </div>
+  <div>
   <dt>versioned names</dt>
   <dd>Contextual tool names carry a hash of the story and schema, so an old capability cannot silently point at a new schema.</dd>
+  </div>
+  <div>
   <dt>honest annotations</dt>
   <dd>All tools are marked as returning untrusted content, and read-only annotations match their behavior.</dd>
+  </div>
+  <div>
   <dt>degrades quietly</dt>
   <dd>Without WebMCP support Storybook continues normally and the panel says so.</dd>
+  </div>
 </dl>
 
 ## docs
