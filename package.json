@@ -75,7 +75,7 @@
     "@types/react-transition-group": "^4.4.12",
     "@types/stylis": "^4.2.7",
     "@vitejs/plugin-react": "^6.0.4",
-    "@vitest/browser-playwright": "^4.1.10",
+    "@vitest/browser-playwright": "^5.0.2",
     "@vitest/coverage-v8": "^4.1.10",
     "eslint-plugin-storybook": "^10.5.5",
     "happy-dom": "^20.11.1",
