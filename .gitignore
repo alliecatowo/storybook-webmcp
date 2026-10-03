@@ -50,3 +50,7 @@ packages/*/dist
 .env.*
 !.env.example
 .mcp.json
+
+# VitePress
+docs/.vitepress/cache/
+docs/.vitepress/dist/

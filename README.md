@@ -1,5 +1,7 @@
 # Storybook WebMCP
 
+**[Docs](https://alliecatowo.github.io/storybook-webmcp/)** · [npm](https://www.npmjs.com/package/storybook-addon-webmcp)
+
 **Your agent shouldn't have its own Storybook. It should work in yours.**
 
 _Same story. Same state. Same screen. Human and agent._
