@@ -11,7 +11,7 @@
   "bugs": {
     "url": "https://github.com/alliecatowo/storybook-webmcp/issues"
   },
-  "homepage": "https://github.com/alliecatowo/storybook-webmcp/tree/main/packages/storybook-addon-webmcp",
+  "homepage": "https://github.com/alliecatowo/storybook-webmcp#readme",
   "type": "module",
   "keywords": [
     "storybook-addons",
@@ -61,7 +61,8 @@
     "typescript": "^7.0.2"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   },
   "storybook": {
     "displayName": "WebMCP",
@@ -73,5 +74,6 @@
       "web-components",
       "html"
     ]
-  }
+  },
+  "author": "Allison Coleman <me@allisons.dev>"
 }

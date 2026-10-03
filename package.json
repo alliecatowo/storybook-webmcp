@@ -1,5 +1,6 @@
 {
   "name": "storybook-webmcp-workspace",
+  "license": "MIT",
   "version": "0.1.0",
   "private": true,
   "description": "Development workspace for Storybook WebMCP and its vendored demonstration host.",
