@@ -42,6 +42,13 @@
       "rules": {
         "storybook/no-uninstalled-addons": "error"
       }
+    },
+    {
+      "files": ["examples/mealdrop/**"],
+      "rules": {
+        "react/set-state-in-effect": "off",
+        "react/refs": "off"
+      }
     }
   ],
   "ignorePatterns": [
