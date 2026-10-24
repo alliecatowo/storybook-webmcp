@@ -1926,21 +1926,21 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@storybook/addon-mcp@npm:^10.6.1":
-  version: 10.6.1
-  resolution: "@storybook/addon-mcp@npm:10.6.1"
+"@storybook/addon-mcp@npm:^10.6.2":
+  version: 10.6.2
+  resolution: "@storybook/addon-mcp@npm:10.6.2"
   dependencies:
     "@tmcp/adapter-valibot": "npm:^0.1.5"
     "@tmcp/transport-http": "npm:^0.8.5"
     tmcp: "npm:^1.19.4"
     valibot: "npm:^1.4.0"
   peerDependencies:
-    "@storybook/addon-vitest": ^10.6.1
-    storybook: ^10.6.1
+    "@storybook/addon-vitest": ^10.6.2
+    storybook: ^10.6.2
   peerDependenciesMeta:
     "@storybook/addon-vitest":
       optional: true
-  checksum: 10c0/0f36586163b4ba41f3aa295149b60446cd826eb5b59bdc51a21dd80f31a1f0d3b89cc3804f63aba9995c7b256819c53702163dfc6c2ef359d182bed6c74423cf
+  checksum: 10c0/37920a72a17af0d4b74eedd0d51285c34ed3a509ea6bf9c44bdfd1b630534a0557bab1a7c39108d0dfa38dd125b8a6c3864a7895b9806a3e240be502dcd47746
   languageName: node
   linkType: hard
 
@@ -5593,7 +5593,7 @@ __metadata:
     "@storybook/addon-a11y": "npm:^10.6.1"
     "@storybook/addon-designs": "npm:^11.1.4"
     "@storybook/addon-docs": "npm:^10.6.1"
-    "@storybook/addon-mcp": "npm:^10.6.1"
+    "@storybook/addon-mcp": "npm:^10.6.2"
     "@storybook/addon-vitest": "npm:^10.6.1"
     "@storybook/react-vite": "npm:^10.6.1"
     "@testing-library/dom": "npm:^10.4.2"
